@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Plum 360 Simulator — v0.4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --case: #cfccc1; --case-dark: #8a857a; --case-accent: #5a554a; --bezel: #2a2825;
+    --lcd-bg: #b8c89a; --lcd-bg-alt: #c4d3a8; --lcd-text: #1a2410; --lcd-dim: #4a5a3a;
+    --softkey: #e8e4d8; --softkey-pressed: #b5b1a5;
+    --hardkey: #3c3a35; --hardkey-pressed: #1f1d1a; --hardkey-text: #f0ede4;
+    --start: #2a7f3f; --start-pressed: #1a5a2a; --stop: #b8332a; --stop-pressed: #8a1f18;
+    --led-green: #4ade80; --led-amber: #fbbf24; --led-red: #f87171; --led-off: #2a2825;
+    --accent: #3b82c4; --tier1: #4ade80; --tier2: #fbbf24; --tier3: #f87171;
+    --log-bg: #1a1a1f; --log-fg: #d4d4d8;
+    --log-event: #fbbf24; --log-state: #4ade80; --log-error: #f87171; --log-meta: #71717a;
+    --shadow: rgba(0, 0, 0, 0.25);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100vh;
+    background: linear-gradient(135deg, #1a1d24 0%, #2a2e38 100%);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    color: #e4e4e7; overflow-x: hidden; touch-action: manipulation;
+  }
+  .stage {
+    display: grid; grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 24px; padding: 20px; max-width: 1700px; margin: 0 auto; min-height: 100vh;
+  }
+  @media (max-width: 1200px) { .stage { grid-template-columns: 1fr; } }
+
+  /* ============ NAME / MODE MODAL ============ */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
+    z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal {
+    background: #1f1f2a; border-radius: 16px; padding: 32px 28px;
+    max-width: 480px; width: 100%; color: #e4e4e7;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
+  .modal p { margin: 0 0 20px; color: #a1a1aa; font-size: 13px; line-height: 1.5; }
+  .modal label { font-size: 11px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; display: block; margin-bottom: 6px; margin-top: 14px; }
+  .modal input {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15); color: #fff;
+    padding: 12px 14px; border-radius: 8px;
+    font-family: inherit; font-size: 15px;
+  }
+  .modal input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+  .mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .mode-card {
+    background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+    padding: 14px; border-radius: 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .mode-card:hover { background: rgba(255,255,255,0.08); }
+  .mode-card.selected {
+    border-color: var(--accent); background: rgba(59, 130, 196, 0.1);
+  }
+  .mode-card .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .mode-card .sub { font-size: 11px; color: #a1a1aa; line-height: 1.4; }
+  .modal-btn {
+    width: 100%; background: var(--accent); border: none; color: #fff;
+    padding: 12px 14px; border-radius: 8px; font-family: inherit;
+    font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 20px;
+  }
+  .modal-btn:hover { background: #2c6da4; }
+
+  /* ============ PUMP ============ */
+  .pump-wrap { display: flex; flex-direction: column; align-items: center; padding: 20px 0; }
+  .pump {
+    background: var(--case); border-radius: 18px; padding: 28px 24px 32px;
+    box-shadow: 0 30px 60px var(--shadow), 0 0 0 4px var(--case-dark), 0 0 0 6px var(--case-accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    width: 100%; max-width: 720px;
+  }
+  .brand { text-align: center; margin-bottom: 18px; color: var(--case-accent); }
+  .brand .logo { font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  .brand .model { font-family: 'IBM Plex Mono'; font-weight: 600; font-size: 22px; margin-top: 2px; letter-spacing: 1px; }
+  .indicators { display: flex; justify-content: space-between; align-items: center; padding: 0 8px 12px; }
+  .led-group { display: flex; gap: 18px; align-items: center; }
+  .led { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .led .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--led-off); box-shadow: inset 0 1px 2px rgba(0,0,0,0.5); transition: all 0.15s; }
+  .led.active.green .dot { background: var(--led-green); box-shadow: 0 0 8px var(--led-green); }
+  .led.active.amber .dot { background: var(--led-amber); box-shadow: 0 0 8px var(--led-amber); }
+  .led.active.red .dot { background: var(--led-red); box-shadow: 0 0 12px var(--led-red); }
+  .led .label { font-size: 9px; font-weight: 600; color: var(--case-accent); letter-spacing: 0.5px; }
+  .led.blink.active .dot { animation: blink 1s infinite; }
+  @keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0.3; } }
+  @keyframes alarm-flash { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.2; } }
+
+  .lcd { background: var(--bezel); border-radius: 8px; padding: 8px; box-shadow: inset 0 4px 12px rgba(0,0,0,0.5); margin-bottom: 4px; }
+  .screen {
+    background: var(--lcd-bg);
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 3px);
+    border-radius: 4px; padding: 16px 18px; min-height: 280px;
+    font-family: 'IBM Plex Mono'; color: var(--lcd-text); font-size: 14px;
+    position: relative; overflow: hidden;
+  }
+  .screen.alarm-active { animation: alarm-flash 0.6s infinite; background: var(--lcd-bg-alt); }
+  .screen-content { display: flex; flex-direction: column; gap: 8px; min-height: 240px; }
+  .screen .title-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--lcd-dim); padding-bottom: 6px; margin-bottom: 8px; font-weight: 600; font-size: 13px; }
+  .screen .status-icons { display: flex; gap: 6px; font-size: 11px; font-weight: 600; }
+  .screen .line-region { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 4px 0; }
+  .screen .line-block { border: 1px solid var(--lcd-dim); border-radius: 3px; padding: 8px 10px; background: rgba(255,255,255,0.08); }
+  .screen .line-block.empty { color: var(--lcd-dim); }
+  .screen .line-block.running { border-color: var(--lcd-text); background: rgba(255,255,255,0.15); }
+  .screen .line-block.standby { background: rgba(0,0,0,0.08); border-style: dashed; }
+  .screen .line-label { font-weight: 700; font-size: 12px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+  .screen .line-label .badge { font-size: 9px; background: var(--lcd-text); color: var(--lcd-bg); padding: 1px 5px; border-radius: 2px; }
+  .screen .line-row { display: flex; justify-content: space-between; font-size: 12px; margin: 2px 0; }
+  .screen .line-row .v { font-weight: 600; }
+  .screen .center-msg { text-align: center; padding: 28px 8px; font-size: 14px; font-weight: 500; line-height: 1.5; }
+  .screen .prompt { text-align: center; font-size: 12px; font-style: italic; color: var(--lcd-dim); margin-top: 6px; }
+  .screen .listrow { padding: 5px 10px; border-radius: 2px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .screen .listrow.selected { background: var(--lcd-text); color: var(--lcd-bg); font-weight: 600; }
+  .screen .listrow .meta { font-size: 11px; opacity: 0.7; }
+  .screen .field-row { display: grid; grid-template-columns: 1.4fr 1fr 0.6fr; gap: 10px; padding: 4px 6px; align-items: center; font-size: 13px; border-radius: 2px; }
+  .screen .field-row.active { background: var(--lcd-text); color: var(--lcd-bg); font-weight: 600; }
+  .screen .field-row .v { text-align: right; font-weight: 700; }
+  .screen .field-row .u { font-size: 11px; opacity: 0.8; }
+  .screen .alarm-banner { background: var(--lcd-text); color: var(--lcd-bg); padding: 8px 12px; font-weight: 700; text-align: center; margin: 0 -18px 12px; font-size: 14px; letter-spacing: 0.5px; }
+  .screen .running-bar { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--lcd-dim); border-bottom: 1px dashed var(--lcd-dim); margin: 4px 0; }
+  .screen .running-bar .dot { width: 8px; height: 8px; background: var(--lcd-text); border-radius: 50%; animation: blink 1s infinite; }
+  .screen .powering { text-align: center; padding: 40px 0; }
+  .screen .powering .v-meta { font-size: 11px; color: var(--lcd-dim); margin-top: 20px; line-height: 1.7; }
+  .screen .spinner { display: inline-block; width: 24px; height: 24px; border: 2px solid var(--lcd-dim); border-top-color: var(--lcd-text); border-radius: 50%; animation: spin 0.8s linear infinite; margin-top: 12px; }
+  .screen .backprime-arrow { display: inline-block; font-size: 28px; animation: blink 0.4s infinite; margin: 8px 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .blink-cursor::after { content: '_'; animation: blink 1s infinite; color: var(--lcd-text); font-weight: 700; }
+  .lock-icon { font-size: 11px; }
+
+  .softkey-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 18px; }
+  .softkey {
+    background: var(--softkey); border: none; padding: 14px 6px 10px;
+    border-radius: 4px; font-family: inherit; font-weight: 600;
+    font-size: 11px; color: var(--case-accent); cursor: pointer;
+    box-shadow: 0 2px 0 var(--softkey-pressed), inset 0 1px 0 rgba(255,255,255,0.6);
+    position: relative; min-height: 56px; line-height: 1.2;
+    transition: transform 0.05s, box-shadow 0.05s; user-select: none;
+  }
+  .softkey::before { content: '▲'; position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 8px; color: var(--accent); }
+  .softkey:active, .softkey.pressed { transform: translateY(2px); box-shadow: 0 0 0 var(--softkey-pressed); }
+  .softkey.empty { background: var(--case-dark); color: transparent; cursor: default; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+  .softkey.empty::before { display: none; }
+
+  .controls { display: grid; grid-template-columns: 1fr 200px; gap: 20px; }
+  @media (max-width: 560px) { .controls { grid-template-columns: 1fr; } }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .key {
+    background: var(--hardkey); color: var(--hardkey-text); border: none;
+    border-radius: 6px; padding: 10px 4px; font-family: inherit;
+    font-weight: 600; font-size: 16px; cursor: pointer;
+    box-shadow: 0 3px 0 var(--hardkey-pressed); min-height: 50px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    line-height: 1.1; transition: transform 0.05s, box-shadow 0.05s; user-select: none;
+  }
+  .key:active, .key.pressed { transform: translateY(3px); box-shadow: 0 0 0 var(--hardkey-pressed); }
+  .key .letters { font-size: 9px; font-weight: 500; opacity: 0.7; margin-top: 1px; letter-spacing: 1px; }
+  .key.utility { font-size: 11px; letter-spacing: 0.5px; }
+  .hard-cluster { display: grid; gap: 6px; }
+  .line-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .key.line { background: var(--accent); font-size: 22px; font-weight: 700; }
+  .select-cluster { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
+  .key.select { font-size: 14px; min-height: 36px; padding: 4px; }
+  .key.select.up { grid-column: 2; grid-row: 1; }
+  .key.select.down { grid-column: 2; grid-row: 2; }
+  .key.select.left { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+  .key.select.right { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .start-stop { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .key.start { background: var(--start); font-size: 15px; min-height: 56px; }
+  .key.stop { background: var(--stop); font-size: 15px; min-height: 56px; }
+  .power-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .key.power { background: #2a2825; border: 1px solid var(--case-dark); }
+
+  /* ============ SIDEBAR ============ */
+  .sidebar {
+    background: var(--log-bg); border-radius: 14px; padding: 16px;
+    color: var(--log-fg); font-family: inherit;
+    height: calc(100vh - 40px); position: sticky; top: 20px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 40px var(--shadow);
+  }
+  @media (max-width: 1200px) { .sidebar { height: auto; max-height: none; position: static; } }
+
+  .student-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .student-name { font-weight: 600; font-size: 14px; }
+  .student-name .label { font-size: 10px; color: var(--log-meta); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px; }
+  .student-name .mode-pill {
+    display: inline-block; background: rgba(59,130,196,0.2);
+    border: 1px solid var(--accent); color: var(--accent);
+    font-size: 9px; padding: 2px 6px; border-radius: 8px;
+    margin-left: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+    vertical-align: middle;
+  }
+  .student-change { background: none; border: 1px solid rgba(255,255,255,0.15); color: #e4e4e7; padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .student-change:hover { background: rgba(255,255,255,0.05); }
+
+  .scenario-list { overflow-y: auto; max-height: 50%; margin-bottom: 12px; }
+  .scenario-list::-webkit-scrollbar { width: 6px; }
+  .scenario-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+  .tier { margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; overflow: hidden; }
+  .tier-header { background: rgba(255,255,255,0.04); padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .tier-header:hover { background: rgba(255,255,255,0.07); }
+  .tier-header .tier-info { display: flex; align-items: center; gap: 10px; }
+  .tier-header .tier-badge { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #1a1a1f; }
+  .tier-header.tier-1 .tier-badge { background: var(--tier1); }
+  .tier-header.tier-2 .tier-badge { background: var(--tier2); }
+  .tier-header.tier-3 .tier-badge { background: var(--tier3); }
+  .tier-header .tier-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tier-header .tier-progress { font-size: 11px; color: var(--log-meta); font-family: 'IBM Plex Mono'; font-weight: 500; }
+  .tier-header .chevron { transition: transform 0.2s; font-size: 10px; color: var(--log-meta); margin-left: 6px; }
+  .tier.collapsed .chevron { transform: rotate(-90deg); }
+  .tier-content { padding: 4px 6px; }
+  .tier.collapsed .tier-content { display: none; }
+  .scenario-tile {
+    padding: 8px 10px; margin: 3px 0; border-radius: 5px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; transition: background 0.1s; border: 1px solid transparent;
+  }
+  .scenario-tile:hover { background: rgba(255,255,255,0.04); }
+  .scenario-tile.active { background: rgba(59, 130, 196, 0.15); border-color: var(--accent); }
+  .scenario-tile .info { flex: 1; min-width: 0; }
+  .scenario-tile .name { color: #e4e4e7; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scenario-tile .meta { font-size: 10px; color: var(--log-meta); font-family: 'IBM Plex Mono'; margin-top: 1px; }
+  .scenario-tile .check { color: var(--led-green); font-weight: 700; margin-left: 8px; font-size: 14px; }
+  .scenario-tile.passed { background: rgba(74, 222, 128, 0.04); }
+  .scenario-tile.mastery .check { color: #fde047; text-shadow: 0 0 8px rgba(253, 224, 71, 0.5); }
+  .scenario-tile .target-time {
+    font-size: 9px; color: var(--led-amber); margin-left: 6px;
+    font-family: 'IBM Plex Mono'; opacity: 0.85;
+  }
+
+  .sidebar h3 { font-size: 11px; margin: 12px 0 6px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--log-meta); font-weight: 600; }
+  .scenario-card { background: rgba(255,255,255,0.05); border-left: 3px solid var(--accent); border-radius: 4px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; line-height: 1.5; }
+  .scenario-card .desc { color: #d4d4d8; margin-bottom: 8px; }
+  .scenario-card .target { color: #d4d4d8; font-size: 11px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .scenario-card .target b { color: #fff; }
+  .scenario-card .target .line-tag { display: inline-block; background: var(--accent); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 2px; margin-right: 4px; font-weight: 600; letter-spacing: 0.5px; }
+  .controls-row { display: flex; gap: 6px; margin: 10px 0; }
+  .sidebar button.action { flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e4e4e7; padding: 8px 6px; border-radius: 6px; font-size: 11px; font-family: inherit; cursor: pointer; font-weight: 500; }
+  .sidebar button.action:hover { background: rgba(255,255,255,0.15); }
+  .sidebar button.action.primary { background: var(--accent); border-color: var(--accent); }
+  .log-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .log-stat { background: rgba(255,255,255,0.05); border-radius: 4px; padding: 8px 10px; }
+  .log-stat .v { font-size: 18px; font-weight: 700; font-family: 'IBM Plex Mono'; color: #fff; }
+  .log-stat .k { font-size: 9px; color: var(--log-meta); text-transform: uppercase; letter-spacing: 0.5px; }
+  .event-log { flex: 1; overflow-y: auto; font-family: 'IBM Plex Mono'; font-size: 11px; line-height: 1.5; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); min-height: 100px; }
+  .event-log::-webkit-scrollbar { width: 6px; }
+  .event-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+  .event { padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); display: grid; grid-template-columns: 38px 1fr; gap: 6px; }
+  .event .t { color: var(--log-meta); font-size: 10px; }
+  .event .body .n { color: var(--log-event); font-weight: 600; }
+  .event.state .body .n { color: var(--log-state); }
+  .event.error .body .n { color: var(--log-error); }
+  .event .body .p { color: var(--log-meta); font-size: 10px; }
+  .verdict { margin-top: 10px; padding: 12px; border-radius: 6px; text-align: center; font-weight: 600; font-size: 13px; display: none; }
+  .verdict.show { display: block; }
+  .verdict.pass { background: rgba(74, 222, 128, 0.15); border: 1px solid var(--led-green); color: var(--led-green); }
+  .verdict.fail { background: rgba(248, 113, 113, 0.15); border: 1px solid var(--log-error); color: var(--log-error); }
+  .verdict.mastery { background: rgba(253, 224, 71, 0.15); border: 1px solid #fde047; color: #fde047; }
+  .verdict .reasons { font-weight: 400; font-size: 11px; color: #d4d4d8; margin-top: 6px; text-align: left; }
+  .verdict .next-up { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .verdict .next-up button { background: var(--accent); color: #fff; border: none; padding: 8px 14px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: var(--stop); color: #fff; padding: 12px 20px; border-radius: 8px; font-weight: 600; z-index: 100; transition: transform 0.3s; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 90vw; text-align: center; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.info { background: var(--accent); }
+  .toast.warn { background: var(--led-amber); color: #2a2825; }
+</style>
+</head>
+<body>
+
+<div class="modal-backdrop" id="name-modal">
+  <div class="modal">
+    <h2>Welcome</h2>
+    <p>Pick your role and enter your name to track progress through the scenarios.</p>
+    <label>Your role</label>
+    <div class="mode-cards">
+      <div class="mode-card selected" data-mode="student">
+        <div class="title">Student</div>
+        <div class="sub">Step-by-step guidance, all three tiers, no time pressure</div>
+      </div>
+      <div class="mode-card" data-mode="nurse">
+        <div class="title">Experienced Nurse</div>
+        <div class="sub">Clinical scenarios with time benchmarks, fundamentals hidden by default</div>
+      </div>
+    </div>
+    <label>Name</label>
+    <input id="name-input" type="text" placeholder="First and last name" autocomplete="name" />
+    <button class="modal-btn" id="name-submit">Start practicing</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="pump-wrap">
+    <div class="pump">
+      <div class="brand">
+        <div class="logo">ICU MEDICAL</div>
+        <div class="model">Plum 360™</div>
+      </div>
+      <div class="indicators">
+        <div class="led-group">
+          <div class="led blink" id="led-line-a"><div class="dot"></div><div class="label">LINE A</div></div>
+          <div class="led blink" id="led-line-b"><div class="dot"></div><div class="label">LINE B</div></div>
+        </div>
+        <div class="led-group">
+          <div class="led" id="led-alarm"><div class="dot"></div><div class="label">ALARM</div></div>
+          <div class="led active green" id="led-ac"><div class="dot"></div><div class="label">AC ON</div></div>
+        </div>
+      </div>
+      <div class="lcd"><div class="screen" id="screen"><div class="screen-content" id="screen-content"></div></div></div>
+      <div class="softkey-strip" id="softkeys"></div>
+      <div class="controls">
+        <div class="keypad">
+          <button class="key" data-digit="1">1</button>
+          <button class="key" data-digit="2">2<span class="letters">A B C</span></button>
+          <button class="key" data-digit="3">3<span class="letters">D E F</span></button>
+          <button class="key" data-digit="4">4<span class="letters">G H I</span></button>
+          <button class="key" data-digit="5">5<span class="letters">J K L</span></button>
+          <button class="key" data-digit="6">6<span class="letters">M N O</span></button>
+          <button class="key" data-digit="7">7<span class="letters">P Q R S</span></button>
+          <button class="key" data-digit="8">8<span class="letters">T U V</span></button>
+          <button class="key" data-digit="9">9<span class="letters">W X Y Z</span></button>
+          <button class="key utility" data-key="clear">C<span class="letters">CLEAR</span></button>
+          <button class="key" data-digit="0">0</button>
+          <button class="key utility" data-key="decimal">.</button>
+        </div>
+        <div class="hard-cluster">
+          <div class="line-keys"><button class="key line" data-key="A">A</button><button class="key line" data-key="B">B</button></div>
+          <div class="select-cluster">
+            <button class="key select up" data-key="select-up">▲</button>
+            <button class="key select left" data-key="select-left">◀</button>
+            <button class="key select right" data-key="select-right">▶</button>
+            <button class="key select down" data-key="select-down">▼</button>
+          </div>
+          <div class="start-stop"><button class="key start" data-key="start">START</button><button class="key stop" data-key="stop">STOP</button></div>
+          <div class="power-row"><button class="key utility power" data-key="audio">AUDIO<br>PAUSE</button><button class="key utility power" data-key="power">ON/OFF</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="student-bar">
+      <div class="student-name">
+        <span class="label">Student</span>
+        <span id="student-display">—</span><span class="mode-pill" id="mode-pill">student</span>
+      </div>
+      <button class="student-change" id="btn-change-student">Change</button>
+    </div>
+    <div class="scenario-list" id="scenario-list"></div>
+    <div class="scenario-card" id="scenario-card"></div>
+    <div class="controls-row">
+      <button class="action primary" id="btn-restart">↻ Restart scenario</button>
+      <button class="action" id="btn-toggle-log">Hide log</button>
+    </div>
+    <h3>Run statistics</h3>
+    <div class="log-stats">
+      <div class="log-stat"><div class="v" id="stat-events">0</div><div class="k">Events</div></div>
+      <div class="log-stat"><div class="v" id="stat-time">0s</div><div class="k">Elapsed</div></div>
+      <div class="log-stat"><div class="v" id="stat-errors">0</div><div class="k">Errors</div></div>
+    </div>
+    <h3>Event log</h3>
+    <div class="event-log" id="event-log"></div>
+    <div class="verdict" id="verdict"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  PLUM 360 SIMULATOR — v0.4
+//  Mode toggle + expanded scenario library (29 scenarios)
+// ============================================================
+
+const DRUG_LIBRARY = {
+  'Critical Care': [
+    { name: '0.45% NaCl',        concentrations: [{ label: '1000 mL bag',         mode: 'fluid',  unit: 'mL/hr',         soft: [1, 999],     hard: [1, 999] }] },
+    { name: '0.9% NaCl',         concentrations: [{ label: '1000 mL bag',         mode: 'fluid',  unit: 'mL/hr',         soft: [1, 999],     hard: [1, 999] }] },
+    { name: 'Ampicillin',        concentrations: [{ label: '2 g / 100 mL',        mode: 'rate',   unit: 'mg/hr',         soft: [1000, 4000], hard: [500, 6000], piggybackable: true }] },
+    { name: 'Cefazolin',         concentrations: [{ label: '1 g / 100 mL',        mode: 'rate',   unit: 'mg/hr',         soft: [500, 1500],  hard: [100, 2000], piggybackable: true }] },
+    { name: 'D5W',               concentrations: [{ label: '1000 mL bag',         mode: 'fluid',  unit: 'mL/hr',         soft: [1, 999],     hard: [1, 999] }] },
+    { name: 'D5 1/2 NS',         concentrations: [{ label: '1000 mL bag',         mode: 'fluid',  unit: 'mL/hr',         soft: [1, 999],     hard: [1, 999] }] },
+    { name: 'Dexmedetomidine',   concentrations: [{ label: '400 mcg / 100 mL',    mode: 'weight', unit: 'mcg/kg/hr',     soft: [0.2, 1.4],   hard: [0.1, 2.0] }] },
+    { name: 'Diltiazem',         concentrations: [{ label: '125 mg / 125 mL',     mode: 'rate',   unit: 'mg/hr',         soft: [5, 15],      hard: [1, 20] }] },
+    { name: 'Dobutamine',        concentrations: [{ label: '500 mg / 250 mL',     mode: 'weight', unit: 'mcg/kg/min',    soft: [2.5, 10],    hard: [0.5, 20] }] },
+    { name: 'Dopamine',          concentrations: [{ label: '400 mg / 250 mL',     mode: 'weight', unit: 'mcg/kg/min',    soft: [2, 20],      hard: [0.5, 50] }] },
+    { name: 'Epinephrine',       concentrations: [{ label: '4 mg / 250 mL',       mode: 'weight', unit: 'mcg/kg/min',    soft: [0.01, 0.3],  hard: [0.01, 1.0] }] },
+    { name: 'Esmolol',           concentrations: [{ label: '2,500 mg / 250 mL',   mode: 'weight', unit: 'mcg/kg/min',    soft: [50, 200],    hard: [25, 300] }] },
+    { name: 'Furosemide',        concentrations: [{ label: '100 mg / 100 mL',     mode: 'rate',   unit: 'mg/hr',         soft: [2, 20],      hard: [1, 40] }] },
+    { name: 'Heparin',           concentrations: [
+                                   { label: '25,000 units / 250 mL',              mode: 'weight', unit: 'units/kg/hr',   soft: [8, 20],      hard: [1, 40] },
+                                   { label: '12,500 units / 250 mL',              mode: 'weight', unit: 'units/kg/hr',   soft: [8, 20],      hard: [1, 40] }
+                                 ] },
+    { name: 'Hydromorphone',     concentrations: [{ label: '50 mg / 100 mL',      mode: 'rate',   unit: 'mg/hr',         soft: [0.1, 0.5],   hard: [0.05, 6] }] },
+    { name: 'Insulin Regular',   concentrations: [{ label: '100 units / 100 mL',  mode: 'rate',   unit: 'units/hr',      soft: [0.5, 15],    hard: [0.5, 30] }] },
+    { name: 'Labetalol',         concentrations: [{ label: '200 mg / 200 mL',     mode: 'rate',   unit: 'mg/hr',         soft: [5, 80],      hard: [1, 160] }] },
+    { name: 'Lactated Ringers',  concentrations: [{ label: '1000 mL bag',         mode: 'fluid',  unit: 'mL/hr',         soft: [1, 999],     hard: [1, 999] }] },
+    { name: 'Lidocaine',         concentrations: [{ label: '2 g / 250 mL',        mode: 'rate',   unit: 'mg/min',        soft: [1, 4],       hard: [0.5, 5] }] },
+    { name: 'Midazolam',         concentrations: [{ label: '100 mg / 100 mL',     mode: 'rate',   unit: 'mg/hr',         soft: [0.5, 10],    hard: [0.5, 20] }] },
+    { name: 'Milrinone',         concentrations: [{ label: '20 mg / 100 mL',      mode: 'weight', unit: 'mcg/kg/min',    soft: [0.25, 0.75], hard: [0.125, 1.0] }] },
+    { name: 'Morphine',          concentrations: [{ label: '50 mg / 100 mL',      mode: 'rate',   unit: 'mg/hr',         soft: [0.5, 10],    hard: [0.1, 20] }] },
+    { name: 'Nicardipine',       concentrations: [{ label: '20 mg / 200 mL',      mode: 'rate',   unit: 'mg/hr',         soft: [2.5, 15],    hard: [0.5, 30] }] },
+    { name: 'Nitroglycerin',     concentrations: [{ label: '50 mg / 250 mL',      mode: 'rate',   unit: 'mcg/min',       soft: [5, 200],     hard: [5, 400] }] },
+    { name: 'Norepinephrine',    concentrations: [{ label: '8 mg / 250 mL',       mode: 'weight', unit: 'mcg/kg/min',    soft: [0.02, 0.5],  hard: [0.01, 2.0] }] },
+    { name: 'Propofol',          concentrations: [{ label: '1,000 mg / 100 mL',   mode: 'weight', unit: 'mcg/kg/min',    soft: [5, 50],      hard: [5, 200] }] },
+    { name: 'Vancomycin',        concentrations: [{ label: '1 g / 250 mL',        mode: 'rate',   unit: 'mg/hr',         soft: [500, 1000],  hard: [250, 2000], piggybackable: true }] },
+    { name: 'Vasopressin',       concentrations: [{ label: '40 units / 100 mL',   mode: 'rate',   unit: 'units/min',     soft: [0.01, 0.06], hard: [0.01, 0.1] }] }
+  ]
+};
+const LETTER_MAP = { '2':['A','B','C'], '3':['D','E','F'], '4':['G','H','I'], '5':['J','K','L'], '6':['M','N','O'], '7':['P','Q','R','S'], '8':['T','U','V'], '9':['W','X','Y','Z'] };
+
+// ============================================================
+//  SCENARIOS (29 total)
+// ============================================================
+const SCENARIOS = {
+
+  // ============== TIER 1: PUMP FAMILIARIZATION (9) ==============
+  t1_power_on: {
+    tier: 1, name: 'Power on the pump', benchmark: 30,
+    description: 'Press the [ON/OFF] button and wait for the self-test and cassette test to complete.',
+    descriptionNurse: 'Power on. Reach main delivery screen.',
+    completionMode: 'reach_state', completionTarget: 'G-01', expected: {}
+  },
+  t1_stop_infusion: {
+    tier: 1, name: 'Stop a running infusion', benchmark: 15,
+    description: 'The pump is already running NS. Press [STOP] to halt the infusion.',
+    descriptionNurse: 'NS preset running. Stop the infusion.',
+    completionMode: 'stop_running',
+    presets: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 100, vtbi: 1000, running: true, volInfused: 200, mode: 'fluid', unit: 'mL/hr' }, poweredOn: true },
+    expected: {}
+  },
+  t1_simple_rate: {
+    tier: 1, name: 'Program a simple rate', benchmark: 60,
+    description: 'Program 0.9% NaCl at any rate between 50–200 mL/hr and any VTBI. No specific values required.',
+    descriptionNurse: 'NS, free choice rate 50–200 mL/hr.',
+    completionMode: 'reach_state', completionTarget: 'R-01',
+    expected: { lineA: { drug: '0.9% NaCl', minRate: 50, maxRate: 200 } }
+  },
+  t1_clear_correction: {
+    tier: 1, name: 'Correct an entry with CLEAR', benchmark: 60,
+    description: 'Program NS at 125 mL/hr — but first enter the WRONG rate (any value), press [C] (CLEAR), then enter 125. This practices fixing mistakes mid-programming.',
+    descriptionNurse: 'NS 125 mL/hr. Use CLEAR to correct an entry mid-programming.',
+    completionMode: 'reach_state', completionTarget: 'R-01', requiresClearUse: true,
+    expected: { lineA: { drug: '0.9% NaCl', rate: 125 } }
+  },
+  t1_vtbi_alarm: {
+    tier: 1, name: 'Acknowledge a VTBI Complete alarm', benchmark: 30,
+    description: 'NS is delivering and almost done. When the VTBI alarm fires, press [AUDIO PAUSE] to silence, then [STOP].',
+    descriptionNurse: 'Silence VTBI complete alarm, then stop.',
+    completionMode: 'silence_and_stop',
+    presets: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 250, vtbi: 100, running: true, volInfused: 92, mode: 'fluid', unit: 'mL/hr' }, poweredOn: true },
+    expected: {}
+  },
+  t1_drug_search: {
+    tier: 1, name: 'Find a drug in the library', benchmark: 45,
+    description: 'Press [A], select Critical Care, then use the keypad letter search to find Heparin. Stop at the concentration screen.',
+    descriptionNurse: 'Letter-search to Heparin. Stop at concentration screen.',
+    completionMode: 'drug_selected', completionTarget: 'Heparin', expected: {}
+  },
+  t1_backprime: {
+    tier: 1, name: 'Backprime the cassette', benchmark: 30,
+    description: 'Plum-specific workflow. From the idle screen, press and HOLD the [Back Prime] softkey for at least 3 seconds, then release. This pushes fluid backward through the cassette to clear air.',
+    descriptionNurse: 'Press-and-hold [Back Prime] ≥3 seconds.',
+    completionMode: 'backprime_held',
+    presets: { poweredOn: true },
+    expected: {}
+  },
+  t1_hard_limit_recovery: {
+    tier: 1, name: 'Recover from a hard-limit rejection', benchmark: 75,
+    description: 'Program Heparin 25,000/250 mL on an 80 kg patient. Enter dose rate 50 units/kg/hr (exceeds hard limit). When rejected, press [Reprogram] and enter 12 units/kg/hr instead. VTBI 250 mL.',
+    descriptionNurse: 'Trigger hard-limit on Heparin, recover, program 12 units/kg/hr.',
+    requiresHardLimitHit: true,
+    expected: { lineA: { drug: 'Heparin', concentration: '25,000 units / 250 mL', patientWeight: 80, doseRate: 12, vtbi: 250 } }
+  },
+  t1_titrate_running: {
+    tier: 1, name: 'Titrate a running infusion', benchmark: 45,
+    description: 'NS is running at 75 mL/hr. Press [A], then [Titrate], change rate to 125 mL/hr, press [START] to confirm.',
+    descriptionNurse: 'Titrate running NS from 75 → 125 mL/hr.',
+    completionMode: 'titration_done',
+    presets: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 75, vtbi: 1000, running: true, volInfused: 100, mode: 'fluid', unit: 'mL/hr' }, poweredOn: true },
+    expected: { titration: { newDose: 125 } }
+  },
+
+  // ============== TIER 2: BASIC FLOOR SCENARIOS (10) ==============
+  t2_ns_maintenance: {
+    tier: 2, name: 'NS maintenance fluids', benchmark: 75,
+    description: 'Post-op patient on maintenance fluids. Order: 0.9% NaCl at 125 mL/hr, 1000 mL bag.',
+    descriptionNurse: 'NS at 125 mL/hr, 1000 mL.',
+    expected: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 125, vtbi: 1000 } }
+  },
+  t2_d5w_maintenance: {
+    tier: 2, name: 'D5W maintenance', benchmark: 75,
+    description: 'NPO patient. Order: D5W at 100 mL/hr, 1000 mL bag.',
+    descriptionNurse: 'D5W at 100 mL/hr.',
+    expected: { lineA: { drug: 'D5W', concentration: '1000 mL bag', rate: 100, vtbi: 1000 } }
+  },
+  t2_lr_resuscitation: {
+    tier: 2, name: 'LR for fluid resuscitation', benchmark: 75,
+    description: 'Sepsis bundle. Order: Lactated Ringers at 500 mL/hr, 1000 mL bag (rapid bolus).',
+    descriptionNurse: 'LR at 500 mL/hr, 1000 mL.',
+    expected: { lineA: { drug: 'Lactated Ringers', concentration: '1000 mL bag', rate: 500, vtbi: 1000 } }
+  },
+  t2_fluid_swap: {
+    tier: 2, name: 'Switch maintenance fluid (NS → D5 1/2 NS)', benchmark: 90,
+    description: 'Patient is on NS at 125 mL/hr (already running on Line A). Patient is now NPO and the order is changed to D5 1/2 NS at 100 mL/hr. Stop the current infusion and reprogram with the new fluid and rate.',
+    descriptionNurse: 'Stop running NS; reprogram with D5 1/2 NS at 100 mL/hr.',
+    presets: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 125, vtbi: 1000, running: true, volInfused: 300, mode: 'fluid', unit: 'mL/hr' }, poweredOn: true },
+    expected: { lineA: { drug: 'D5 1/2 NS', concentration: '1000 mL bag', rate: 100, vtbi: 1000 } }
+  },
+  t2_cefazolin_ivpb: {
+    tier: 2, name: 'Cefazolin IVPB', benchmark: 120,
+    description: 'Pre-op antibiotic. Maintenance NS at 125 mL/hr already running. Add cefazolin 1g IVPB on Line B in Piggyback mode at 1000 mg/hr.',
+    descriptionNurse: 'Cefazolin 1g IVPB at 1000 mg/hr, piggyback.',
+    presets: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 125, vtbi: 1000, running: true, volInfused: 50, mode: 'fluid', unit: 'mL/hr' } },
+    expected: { lineB: { drug: 'Cefazolin', concentration: '1 g / 100 mL', doseRate: 1000, vtbi: 100, mode: 'Piggyback' } }
+  },
+  t2_ampicillin_ivpb: {
+    tier: 2, name: 'Ampicillin IVPB', benchmark: 120,
+    description: 'Infection. Maintenance LR at 100 mL/hr already running. Add ampicillin 2g IVPB on Line B in Piggyback mode at 2000 mg/hr.',
+    descriptionNurse: 'Ampicillin 2g IVPB at 2000 mg/hr, piggyback.',
+    presets: { lineA: { drug: 'Lactated Ringers', concentration: '1000 mL bag', rate: 100, vtbi: 1000, running: true, volInfused: 50, mode: 'fluid', unit: 'mL/hr' } },
+    expected: { lineB: { drug: 'Ampicillin', concentration: '2 g / 100 mL', doseRate: 2000, vtbi: 100, mode: 'Piggyback' } }
+  },
+  t2_morphine_basal: {
+    tier: 2, name: 'Morphine basal infusion', benchmark: 90,
+    description: 'Post-op pain. Order: morphine 1 mg/hr continuous, 100 mL VTBI.',
+    descriptionNurse: 'Morphine 1 mg/hr, 100 mL VTBI.',
+    expected: { lineA: { drug: 'Morphine', concentration: '50 mg / 100 mL', doseRate: 1, vtbi: 100 } }
+  },
+  t2_furosemide_drip: {
+    tier: 2, name: 'Furosemide drip', benchmark: 90,
+    description: 'CHF, volume overload. Order: furosemide 5 mg/hr continuous, 100 mL VTBI.',
+    descriptionNurse: 'Furosemide 5 mg/hr, 100 mL VTBI.',
+    expected: { lineA: { drug: 'Furosemide', concentration: '100 mg / 100 mL', doseRate: 5, vtbi: 100 } }
+  },
+  t2_diltiazem: {
+    tier: 2, name: 'Diltiazem (a-fib rate control)', benchmark: 90,
+    description: 'A-fib with RVR. Order: diltiazem 10 mg/hr, 125 mL VTBI.',
+    descriptionNurse: 'Diltiazem 10 mg/hr, 125 mL VTBI.',
+    expected: { lineA: { drug: 'Diltiazem', concentration: '125 mg / 125 mL', doseRate: 10, vtbi: 125 } }
+  },
+  t2_labetalol_drip: {
+    tier: 2, name: 'Labetalol drip', benchmark: 90,
+    description: 'Hypertensive urgency. Order: labetalol 20 mg/hr, 200 mL VTBI.',
+    descriptionNurse: 'Labetalol 20 mg/hr, 200 mL VTBI.',
+    expected: { lineA: { drug: 'Labetalol', concentration: '200 mg / 200 mL', doseRate: 20, vtbi: 200 } }
+  },
+
+  // ============== TIER 3: CRITICAL CARE & COMPLICATIONS (10) ==============
+  t3_heparin: {
+    tier: 3, name: 'Heparin (continuous, weight-based)', benchmark: 100,
+    description: 'Continuous heparin for an 80 kg patient on DVT protocol. Order: 12 units/kg/hr.',
+    descriptionNurse: 'Heparin 12 units/kg/hr, 80 kg, 250 mL.',
+    expected: { lineA: { drug: 'Heparin', concentration: '25,000 units / 250 mL', patientWeight: 80, doseRate: 12, vtbi: 250 } }
+  },
+  t3_norepinephrine: {
+    tier: 3, name: 'Norepinephrine (vasopressor)', benchmark: 100,
+    description: 'Septic shock patient, 75 kg. Order: norepinephrine 0.1 mcg/kg/min.',
+    descriptionNurse: 'Norepinephrine 0.1 mcg/kg/min, 75 kg.',
+    expected: { lineA: { drug: 'Norepinephrine', concentration: '8 mg / 250 mL', patientWeight: 75, doseRate: 0.1, vtbi: 250 } }
+  },
+  t3_dopamine: {
+    tier: 3, name: 'Dopamine (vasopressor)', benchmark: 100,
+    description: 'Bradycardia with hypotension, 70 kg patient. Order: dopamine 5 mcg/kg/min.',
+    descriptionNurse: 'Dopamine 5 mcg/kg/min, 70 kg.',
+    expected: { lineA: { drug: 'Dopamine', concentration: '400 mg / 250 mL', patientWeight: 70, doseRate: 5, vtbi: 250 } }
+  },
+  t3_epinephrine: {
+    tier: 3, name: 'Epinephrine drip', benchmark: 100,
+    description: 'Refractory anaphylaxis, 65 kg patient. Order: epinephrine 0.05 mcg/kg/min.',
+    descriptionNurse: 'Epinephrine 0.05 mcg/kg/min, 65 kg.',
+    expected: { lineA: { drug: 'Epinephrine', concentration: '4 mg / 250 mL', patientWeight: 65, doseRate: 0.05, vtbi: 250 } }
+  },
+  t3_propofol: {
+    tier: 3, name: 'Propofol (sedation)', benchmark: 100,
+    description: 'Intubated patient, 90 kg. Order: propofol 25 mcg/kg/min for sedation.',
+    descriptionNurse: 'Propofol 25 mcg/kg/min, 90 kg.',
+    expected: { lineA: { drug: 'Propofol', concentration: '1,000 mg / 100 mL', patientWeight: 90, doseRate: 25, vtbi: 100 } }
+  },
+  t3_insulin: {
+    tier: 3, name: 'Insulin drip with titration', benchmark: 150,
+    description: 'DKA patient. Start regular insulin at 2 units/hr. After ~25% delivered, prompt to titrate UP to 4 units/hr.',
+    descriptionNurse: 'Insulin start 2 units/hr, titrate to 4.',
+    requiresTitration: { triggerVolume: 0.8, newDose: 4 },
+    expected: { lineA: { drug: 'Insulin Regular', concentration: '100 units / 100 mL', doseRate: 2, vtbi: 100 }, titration: { newDose: 4 } }
+  },
+  t3_vancomycin_ivpb: {
+    tier: 3, name: 'Vancomycin piggyback', benchmark: 150,
+    description: 'Maintenance NS at 125 mL/hr running. Add vancomycin 1 g IVPB at 250 mL/hr, piggyback.',
+    descriptionNurse: 'Vancomycin 1g IVPB at 250 mL/hr, piggyback.',
+    presets: { lineA: { drug: '0.9% NaCl', concentration: '1000 mL bag', rate: 125, vtbi: 1000, running: true, volInfused: 50, mode: 'fluid', unit: 'mL/hr' } },
+    expected: { lineB: { drug: 'Vancomycin', concentration: '1 g / 250 mL', rate: 250, vtbi: 250, mode: 'Piggyback' } }
+  },
+  t3_nitroglycerin: {
+    tier: 3, name: 'Nitroglycerin (titration-ready)', benchmark: 100,
+    description: 'ACS, chest pain. Order: nitroglycerin 20 mcg/min, VTBI 250 mL.',
+    descriptionNurse: 'Nitroglycerin 20 mcg/min, 250 mL.',
+    expected: { lineA: { drug: 'Nitroglycerin', concentration: '50 mg / 250 mL', doseRate: 20, vtbi: 250 } }
+  },
+  t3_hydromorphone_pca: {
+    tier: 3, name: 'Hydromorphone basal + bolus', benchmark: 200,
+    description: 'Post-op pain. Basal 0.2 mg/hr. Once running, deliver a 0.5 mg bolus over 5 min via [Bolus] softkey.',
+    descriptionNurse: 'Hydromorphone basal 0.2 mg/hr; bolus 0.5 mg / 5 min.',
+    requiresBolus: { triggerVolume: 0.05, amount: 0.5, duration: 5 },
+    expected: { lineA: { drug: 'Hydromorphone', concentration: '50 mg / 100 mL', doseRate: 0.2, vtbi: 100 }, bolus: { amount: 0.5, duration: 5 } }
+  },
+  t3_heparin_complication: {
+    tier: 3, name: 'Heparin + distal occlusion', benchmark: 180,
+    description: 'Same heparin program (80 kg, 12 units/kg/hr). A distal occlusion will be injected mid-delivery — respond appropriately.',
+    descriptionNurse: 'Heparin + distal occlusion at 25 mL infused.',
+    complications: [{ type: 'A-OCC-D', triggerVolume: 25 }],
+    expected: { lineA: { drug: 'Heparin', concentration: '25,000 units / 250 mL', patientWeight: 80, doseRate: 12, vtbi: 250 } }
+  }
+};
+
+const TIER_META = {
+  1: { title: 'Pump Familiarization' },
+  2: { title: 'Basic Floor Scenarios' },
+  3: { title: 'Critical Care & Complications' }
+};
+
+// ============================================================
+//  PERSISTENCE
+// ============================================================
+const STORAGE_KEYS = { name: 'plum360_student_v04', mode: 'plum360_mode_v04', progress: 'plum360_progress_v04' };
+function getStudentName() { try { return localStorage.getItem(STORAGE_KEYS.name) || ''; } catch (e) { return ''; } }
+function setStudentName(n) { try { localStorage.setItem(STORAGE_KEYS.name, n); } catch (e) {} }
+function getMode() { try { return localStorage.getItem(STORAGE_KEYS.mode) || 'student'; } catch (e) { return 'student'; } }
+function setMode(m) { try { localStorage.setItem(STORAGE_KEYS.mode, m); } catch (e) {} }
+function getProgressLog() { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.progress) || '[]'); } catch (e) { return []; } }
+function saveProgressRecord(r) {
+  try { const log = getProgressLog(); log.push(r); localStorage.setItem(STORAGE_KEYS.progress, JSON.stringify(log)); } catch (e) {}
+}
+function getStudentPassesByScenario(name) {
+  const log = getProgressLog();
+  const passes = {};
+  for (const r of log) {
+    if (r.student !== name || !r.pass) continue;
+    if (!passes[r.scenarioId] || r.elapsedSeconds < passes[r.scenarioId].elapsedSeconds) passes[r.scenarioId] = r;
+  }
+  return passes;
+}
+
+// ============================================================
+//  STATE
+// ============================================================
+let ctx;
+let studentName = '';
+let userMode = 'student';
+let currentScenarioId = 't1_power_on';
+let collapsedTiers = { 1: false, 2: true, 3: true };
+
+function freshContext() {
+  return {
+    poweredOn: false, cassetteLoaded: true, doorOpen: false, keypadLocked: false,
+    acConnected: true, battery: 87, mednetConnected: true,
+    selectedCCA: null, drugLibrary: null,
+    currentLine: null, programs: { A: null, B: null },
+    entered: {}, drugSearchFilter: '', drugSelected: null, concentrationSelected: null,
+    listIndex: 0, fieldIndex: 0, fields: [],
+    softLimitOverridden: false, hardLimitHit: false, clearUsed: false,
+    backprimeStart: null, backprimeDuration: 0,
+    scenarioStart: null, deliveryStart: null, volInfusedA: 0, volInfusedB: 0,
+    titrationDone: false, titrationPrompted: false, titrationNewDose: null, titrationOldDose: null,
+    bolusDelivered: false, bolusPrompted: false, bolusActive: false, bolusAmount: 0, bolusDuration: 0, bolusStart: 0,
+    complicationFired: false, alarmStartTime: null, complicationResolvedTime: null, alarmSilenced: false,
+    eventCount: 0, errorCount: 0,
+    letterBuffer: { key: null, count: 0, ts: 0 },
+    scenarioFinalized: false
+  };
+}
+let currentState = 'OFF';
+const stateHistory = [];
+
+function fireEvent(name, payload = {}, kind = 'event') {
+  ctx.eventCount++;
+  const t = ctx.scenarioStart ? ((Date.now() - ctx.scenarioStart) / 1000) : 0;
+  const entry = document.createElement('div');
+  entry.className = `event ${kind}`;
+  const tFmt = t.toFixed(1) + 's';
+  let body = `<span class="n">${name}</span>`;
+  if (Object.keys(payload).length > 0) {
+    const ps = Object.entries(payload).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ');
+    body += ` <span class="p">${ps}</span>`;
+  }
+  entry.innerHTML = `<span class="t">${tFmt}</span><span class="body">${body}</span>`;
+  document.getElementById('event-log').appendChild(entry);
+  document.getElementById('event-log').scrollTop = document.getElementById('event-log').scrollHeight;
+  updateStats();
+}
+function fireError(name, payload = {}) { ctx.errorCount++; fireEvent(name, payload, 'error'); }
+function fireStateEvent(name) { fireEvent(name, {}, 'state'); }
+
+function updateStats() {
+  document.getElementById('stat-events').textContent = ctx.eventCount;
+  document.getElementById('stat-errors').textContent = ctx.errorCount;
+  if (ctx.scenarioStart) document.getElementById('stat-time').textContent = Math.floor((Date.now() - ctx.scenarioStart) / 1000) + 's';
+}
+setInterval(updateStats, 250);
+
+function transition(newState) {
+  if (newState === currentState) return;
+  stateHistory.push(currentState);
+  fireStateEvent(`→ ${newState}`);
+  currentState = newState;
+  if (STATES[newState] && STATES[newState].onEnter) STATES[newState].onEnter();
+  render();
+  checkCompletion('state');
+}
+
+function showToast(msg, kind = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast ' + kind;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ============================================================
+//  STATES
+// ============================================================
+const STATES = {
+  OFF: {
+    render: () => ({ screen: `<div class="center-msg">Press <b>ON/OFF</b> to power on the pump.</div>`, softkeys: ['','','',''], ledA:'off',ledB:'off',ledAC:'off',ledAlarm:'off' }),
+    on: { 'PRESS_POWER': () => { ctx.poweredOn = true; if (!ctx.scenarioStart) ctx.scenarioStart = Date.now(); fireEvent('scenario_started', { scenarioId: currentScenarioId }); transition('S-01'); } }
+  },
+  'S-01': {
+    onEnter: () => { setTimeout(() => { if (currentState === 'S-01') { fireEvent('selftest_complete'); transition(ctx.cassetteLoaded ? 'S-03' : 'S-02'); } }, 2000); },
+    render: () => ({ screen: `<div class="powering"><div style="font-size:16px;font-weight:600">System Self Test</div><div class="spinner"></div><div class="v-meta">Plum 360 SW v15.11<br>Drug Library: Cottage CCA v2.6</div></div>`, softkeys: ['','','',''], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'off' }),
+    on: {}
+  },
+  'S-03': {
+    onEnter: () => { setTimeout(() => { if (currentState === 'S-03') { fireEvent('cassette_test_passed'); if (ctx.programs.A && ctx.programs.A.running) { ctx.deliveryStart = Date.now(); startDeliveryTickPrimary(); } transition('G-01'); } }, 1300); },
+    render: () => ({ screen: `<div class="powering"><div style="font-size:16px;font-weight:600">Cassette Test</div><div class="spinner"></div></div>`, softkeys: ['','','',''], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'off' }),
+    on: {}
+  },
+  'G-01': {
+    render: () => {
+      const a = ctx.programs.A, b = ctx.programs.B;
+      const aRun = a && a.running, bRun = b && b.running;
+      return {
+        screen: `
+          <div class="title-bar"><div>${ctx.selectedCCA || 'Critical Care'}</div><div class="status-icons"><span>⚌ MedNet</span><span>≣${ctx.battery}%</span></div></div>
+          <div class="line-region">
+            <div class="line-block ${a?(aRun?'running':''):'empty'}">
+              <div class="line-label">LINE A ${aRun?'<span class="badge">RUN</span>':''}</div>
+              ${a?`<div class="line-row"><span>Drug</span><span class="v">${truncate(a.drug,12)}</span></div>
+                <div class="line-row"><span>Rate</span><span class="v">${a.rate.toFixed(1)} mL/hr</span></div>
+                <div class="line-row"><span>${aRun?'Infused':'VTBI'}</span><span class="v">${aRun?ctx.volInfusedA.toFixed(1):a.vtbi} mL</span></div>`:`<div class="line-row" style="margin-top:14px">— not programmed —</div>`}
+            </div>
+            <div class="line-block ${b?(bRun?'running':''):'empty'}">
+              <div class="line-label">LINE B ${bRun?'<span class="badge">RUN</span>':''}</div>
+              ${b?`<div class="line-row"><span>Drug</span><span class="v">${truncate(b.drug,12)}</span></div>
+                <div class="line-row"><span>Rate</span><span class="v">${b.rate.toFixed(1)} mL/hr</span></div>
+                <div class="line-row"><span>VTBI</span><span class="v">${b.vtbi} mL</span></div>`:`<div class="line-row" style="margin-top:14px">— not programmed —</div>`}
+            </div>
+          </div>
+          <div class="prompt">${aRun&&!b?'Press <b>B</b> for secondary':'Press <b>A</b> or <b>B</b> to program'}</div>`,
+        softkeys: ['Settings','','','Back Prime'],
+        ledA: aRun?'on-blink':(a?'on':'off'), ledB: bRun?'on-blink':(b?'on':'off'), ledAC:'on', ledAlarm:'off'
+      };
+    },
+    on: {
+      'PRESS_A': () => {
+        if (ctx.programs.A && ctx.programs.A.running) { ctx.currentLine='A'; transition('R-01'); return; }
+        ctx.currentLine = 'A'; ctx.entered = {}; fireEvent('line_selected', { line:'A' }); transition('D-01');
+      },
+      'PRESS_B': () => {
+        if (!ctx.programs.A) { fireError('press_b_without_a'); showToast('Program Line A first','warn'); return; }
+        ctx.currentLine = 'B'; ctx.entered = {}; fireEvent('line_selected', { line:'B' }); transition('B-01');
+      },
+      'PRESS_START': () => { if (ctx.programs.A && !ctx.programs.A.running) transition('P-CONF'); },
+      'PRESS_STOP': () => {
+        if (ctx.programs.A && ctx.programs.A.running) {
+          stopDeliveryTickPrimary(); ctx.programs.A.running = false;
+          fireEvent('delivery_stopped', { line:'A' });
+          checkCompletion('stop'); render();
+        }
+      },
+      'SOFTKEY_Back Prime': () => { ctx.backprimeStart = Date.now(); fireEvent('backprime_started'); transition('BP-01'); }
+    }
+  },
+  'BP-01': {
+    onEnter: () => { ctx.backprimeStart = Date.now(); },
+    render: () => ({
+      screen: `<div class="title-bar"><div>Back Priming</div></div>
+        <div class="center-msg" style="padding:24px 8px">
+          <div class="backprime-arrow">↩↩↩</div>
+          <b>Backpriming cassette</b><br>
+          Hold [Back Prime] until air is cleared.<br>
+          <span style="font-size:11px;color:var(--lcd-dim)">Release to stop.</span>
+        </div>`,
+      softkeys: ['Back Prime','','','Done'],
+      ledA:'off', ledB:'off', ledAC:'on', ledAlarm:'off'
+    }),
+    on: {
+      'SOFTKEY_Done': () => {
+        const duration = (Date.now() - ctx.backprimeStart) / 1000;
+        ctx.backprimeDuration = duration;
+        fireEvent('backprime_completed', { duration: duration.toFixed(1) });
+        checkCompletion('backprime');
+        transition('G-01');
+      },
+      'PRESS_STOP': () => {
+        const duration = (Date.now() - ctx.backprimeStart) / 1000;
+        ctx.backprimeDuration = duration;
+        fireEvent('backprime_stopped', { duration: duration.toFixed(1) });
+        checkCompletion('backprime');
+        transition('G-01');
+      }
+    }
+  },
+  'D-01': {
+    onEnter: () => { ctx.listIndex = 0; },
+    render: () => {
+      const ccas = ['Critical Care','Med-Surg','OR/PACU','Pediatrics'];
+      return { screen: `<div class="title-bar"><div>Select CCA</div></div>${ccas.map((c,i)=>`<div class="listrow ${i===ctx.listIndex?'selected':''}">${c}</div>`).join('')}<div class="prompt">Use ▲▼ then [Choose]</div>`, softkeys:['Choose','','','Cancel'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'off' };
+    },
+    on: {
+      'PRESS_SELECT': (dir) => { if(dir==='down')ctx.listIndex=Math.min(3,ctx.listIndex+1); if(dir==='up')ctx.listIndex=Math.max(0,ctx.listIndex-1); render(); },
+      'SOFTKEY_Choose': () => { ctx.selectedCCA = ['Critical Care','Med-Surg','OR/PACU','Pediatrics'][ctx.listIndex]; ctx.drugLibrary = DRUG_LIBRARY['Critical Care']; fireEvent('cca_selected',{cca:ctx.selectedCCA}); transition('D-02'); },
+      'SOFTKEY_Cancel': () => transition('G-01')
+    }
+  },
+  'D-02': {
+    onEnter: () => { ctx.listIndex = 0; ctx.drugSearchFilter = ''; },
+    render: () => {
+      const drugs = ctx.drugLibrary || [];
+      const filter = ctx.drugSearchFilter.toUpperCase();
+      const filtered = filter ? drugs.filter(d=>d.name.toUpperCase().startsWith(filter)) : drugs;
+      ctx.listIndex = Math.min(ctx.listIndex, Math.max(0, filtered.length-1));
+      const startIdx = Math.max(0, ctx.listIndex-2);
+      const visible = filtered.slice(startIdx, startIdx+7);
+      return {
+        screen: `<div class="title-bar"><div>Drug List ${filter?`[${filter}]`:''}</div><div class="status-icons">${filtered.length}/${drugs.length}</div></div>
+          ${visible.map((d,i)=>`<div class="listrow ${(startIdx+i)===ctx.listIndex?'selected':''}">${d.name}</div>`).join('')}
+          <div class="prompt">${filter?`Press <b>0–9</b> to refine`:`Type letters or press ▲▼`}</div>`,
+        softkeys:['Choose', filter?'Clear':'', '', 'Cancel'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'off'
+      };
+    },
+    on: {
+      'PRESS_LETTER': (l) => { if (ctx.drugSearchFilter.length<3) { ctx.drugSearchFilter+=l; ctx.listIndex=0; fireEvent('drug_filter_typed',{filter:ctx.drugSearchFilter}); render(); } },
+      'PRESS_SELECT': (dir) => { const f = ctx.drugLibrary.filter(d=>!ctx.drugSearchFilter||d.name.toUpperCase().startsWith(ctx.drugSearchFilter.toUpperCase())); if(dir==='down')ctx.listIndex=Math.min(f.length-1,ctx.listIndex+1); if(dir==='up')ctx.listIndex=Math.max(0,ctx.listIndex-1); render(); },
+      'PRESS_CLEAR': () => { ctx.drugSearchFilter=''; ctx.listIndex=0; render(); },
+      'SOFTKEY_Clear': () => { ctx.drugSearchFilter=''; ctx.listIndex=0; render(); },
+      'SOFTKEY_Choose': () => {
+        const f = ctx.drugLibrary.filter(d=>!ctx.drugSearchFilter||d.name.toUpperCase().startsWith(ctx.drugSearchFilter.toUpperCase()));
+        const drug = f[ctx.listIndex]; if (!drug) return;
+        ctx.drugSelected = drug; fireEvent('drug_selected',{drug:drug.name});
+        checkCompletion('drug_selected');
+        if (drug.concentrations.length>1) { ctx.listIndex=0; transition('D-04'); }
+        else { ctx.concentrationSelected = drug.concentrations[0]; fireEvent('concentration_selected',{concentration:drug.concentrations[0].label}); setupProgrammingFields(); transition('P-04'); }
+      },
+      'SOFTKEY_Cancel': () => transition('G-01')
+    }
+  },
+  'D-04': {
+    render: () => {
+      const c = ctx.drugSelected.concentrations;
+      return { screen: `<div class="title-bar"><div>${ctx.drugSelected.name} — Concentration</div></div>${c.map((cc,i)=>`<div class="listrow ${i===ctx.listIndex?'selected':''}">${cc.label}<span class="meta">${cc.unit}</span></div>`).join('')}<div class="prompt">Select concentration</div>`, softkeys:['Choose','','','Cancel'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'off' };
+    },
+    on: {
+      'PRESS_SELECT': (dir) => { const max = ctx.drugSelected.concentrations.length-1; if(dir==='down')ctx.listIndex=Math.min(max,ctx.listIndex+1); if(dir==='up')ctx.listIndex=Math.max(0,ctx.listIndex-1); render(); },
+      'SOFTKEY_Choose': () => { ctx.concentrationSelected = ctx.drugSelected.concentrations[ctx.listIndex]; fireEvent('concentration_selected',{concentration:ctx.concentrationSelected.label}); setupProgrammingFields(); transition('P-04'); },
+      'SOFTKEY_Cancel': () => transition('D-02')
+    }
+  },
+  'P-04': {
+    render: () => {
+      const c = ctx.concentrationSelected, d = ctx.drugSelected;
+      autoCalc();
+      const lineTag = ctx.currentLine==='B'?' (Line B)':'';
+      return {
+        screen: `<div class="title-bar"><div>${d.name}${lineTag} · ${c.label}</div></div>
+          ${ctx.fields.map((f,i)=>`<div class="field-row ${i===ctx.fieldIndex?'active':''}"><span>${f.label}</span><span class="v">${f.value!==null&&f.value!==''?f.value:'— — —'}${i===ctx.fieldIndex&&f.editing?'<span class="blink-cursor"></span>':''}</span><span class="u">${f.unit}</span></div>`).join('')}
+          <div class="prompt">Use ▲▼ · [START] when complete</div>`,
+        softkeys:['Delay','Multistep','Loading Dose',''],
+        ledA: ctx.currentLine==='A'?'off':(ctx.programs.A&&ctx.programs.A.running?'on-blink':'off'),
+        ledB:'off', ledAC:'on', ledAlarm:'off'
+      };
+    },
+    on: {
+      'PRESS_SELECT': (dir) => {
+        if(dir==='down')ctx.fieldIndex=Math.min(ctx.fields.length-1,ctx.fieldIndex+1);
+        if(dir==='up')ctx.fieldIndex=Math.max(0,ctx.fieldIndex-1);
+        while (ctx.fieldIndex<ctx.fields.length-1 && !ctx.fields[ctx.fieldIndex].editable && dir==='down') ctx.fieldIndex++;
+        while (ctx.fieldIndex>0 && !ctx.fields[ctx.fieldIndex].editable && dir==='up') ctx.fieldIndex--;
+        ctx.fields.forEach((f,i)=>f.editing=(i===ctx.fieldIndex&&f.editable));
+        render();
+      },
+      'PRESS_NUMBER': (d) => { const f=ctx.fields[ctx.fieldIndex]; if (!f.editable) return; const cur=f.value===null||f.value===''?'':String(f.value); const n=cur+d; f.value = n.includes('.')?parseFloat(n):parseInt(n,10); render(); },
+      'PRESS_DECIMAL': () => { const f=ctx.fields[ctx.fieldIndex]; if (!f.editable) return; if (f.value===null||f.value==='') {f.value='0.'; render(); return;} if (!String(f.value).includes('.')) {f.value=String(f.value)+'.'; render();} },
+      'PRESS_CLEAR': () => { const f=ctx.fields[ctx.fieldIndex]; if (f.editable&&f.value!==null&&f.value!=='') { ctx.clearUsed = true; fireEvent('clear_used',{field:f.label}); f.value=null; render(); } },
+      'PRESS_START': () => {
+        const missing = ctx.fields.filter(f => f.editable && (f.value===null||f.value===''));
+        if (missing.length>0) { fireError('partial_program_attempted',{missing:missing.map(f=>f.label)}); showToast('Missing: '+missing.map(f=>f.label).join(', '),'warn'); return; }
+        const c = ctx.concentrationSelected;
+        const doseField = getField('Dose Rate') || getField('Rate');
+        const dose = parseFloat(doseField.value);
+        if (c.mode!=='fluid') {
+          if (dose<c.hard[0]||dose>c.hard[1]) { fireEvent('hard_limit_blocked',{dose,limits:c.hard}); ctx.hardLimitHit = true; transition('P-HL'); return; }
+          if (dose<c.soft[0]||dose>c.soft[1]) { fireEvent('soft_limit_triggered',{dose,limits:c.soft}); transition('P-SL'); return; }
+        }
+        commitProgram(); transition('P-CONF');
+      },
+      'PRESS_STOP': () => transition('G-01')
+    }
+  },
+  'P-SL': {
+    render: () => {
+      const df = getField('Dose Rate')||getField('Rate'); const dose=parseFloat(df.value); const c=ctx.concentrationSelected;
+      return { screen: `<div class="alarm-banner">⚠ SOFT LIMIT</div><div class="center-msg" style="padding:16px 8px"><b>${ctx.drugSelected.name}</b><br>${df.label} <b>${dose} ${c.unit}</b><br>outside soft limits<br>(${c.soft[0]}–${c.soft[1]} ${c.unit}).<br><br>Continue with override?</div>`, softkeys:['Override','','','Reprogram'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'amber' };
+    },
+    on: {
+      'SOFTKEY_Override': () => { ctx.softLimitOverridden = true; const f=getField('Dose Rate')||getField('Rate'); fireEvent('soft_limit_overridden',{dose:parseFloat(f.value),limits:ctx.concentrationSelected.soft}); commitProgram(); transition('P-CONF'); },
+      'SOFTKEY_Reprogram': () => { fireEvent('soft_limit_reprogram'); transition('P-04'); }
+    }
+  },
+  'P-HL': {
+    render: () => {
+      const df = getField('Dose Rate')||getField('Rate'); const dose=parseFloat(df.value); const c=ctx.concentrationSelected;
+      return { screen: `<div class="alarm-banner">✕ HARD LIMIT</div><div class="center-msg" style="padding:16px 8px"><b>${ctx.drugSelected.name}</b><br>${df.label} <b>${dose} ${c.unit}</b><br>exceeds hard limit (max ${c.hard[1]} ${c.unit}).<br><br>Cannot be delivered.</div>`, softkeys:['','','','Reprogram'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'red' };
+    },
+    on: { 'SOFTKEY_Reprogram': () => transition('P-04') }
+  },
+  'P-CONF': {
+    render: () => {
+      const p = ctx.programs[ctx.currentLine];
+      const lineTag = ctx.currentLine==='B'?` (Line B${p.mode?' · '+p.mode:''})`:'';
+      return {
+        screen: `<div class="title-bar"><div>Confirm Program${lineTag}</div></div>
+          <div style="padding:6px 4px;line-height:1.7;font-size:13px">
+            <div class="line-row"><span>Drug</span><span class="v">${p.drug}</span></div>
+            <div class="line-row"><span>Concentration</span><span class="v">${p.concentration}</span></div>
+            ${p.patientWeight?`<div class="line-row"><span>Weight</span><span class="v">${p.patientWeight} kg</span></div>`:''}
+            ${p.doseRate?`<div class="line-row"><span>Dose Rate</span><span class="v">${p.doseRate} ${p.unit}</span></div>`:''}
+            <div class="line-row"><span>Rate</span><span class="v">${p.rate.toFixed(1)} mL/hr</span></div>
+            <div class="line-row"><span>VTBI</span><span class="v">${p.vtbi} mL</span></div>
+            ${ctx.softLimitOverridden?`<div style="margin-top:10px;font-weight:700">⚠ Soft Limit Override</div>`:''}
+          </div>
+          <div class="prompt">Press [Confirm] to begin delivery</div>`,
+        softkeys:['Confirm','','','Cancel'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'off'
+      };
+    },
+    on: {
+      'SOFTKEY_Confirm': () => {
+        const line = ctx.currentLine; const p = ctx.programs[line]; p.running = true;
+        fireEvent('program_started',{line,drug:p.drug,rate:p.rate,vtbi:p.vtbi});
+        if (line==='B' && p.mode==='Piggyback') {
+          if (ctx.programs.A) ctx.programs.A.running = false;
+          stopDeliveryTickPrimary();
+          ctx.deliveryStart = Date.now(); ctx.volInfusedB = 0;
+          startDeliveryTickSecondary(); transition('R-03');
+        } else {
+          ctx.deliveryStart = Date.now();
+          if (line==='A') ctx.volInfusedA = 0;
+          startDeliveryTickPrimary(); transition('R-01');
+        }
+      },
+      'SOFTKEY_Cancel': () => transition('P-04')
+    }
+  },
+  'B-01': {
+    onEnter: () => { ctx.listIndex = 0; },
+    render: () => {
+      const modes = ['Piggyback','Concurrent'];
+      return { screen: `<div class="title-bar"><div>Line B Delivery Mode</div></div><div style="padding:10px 8px;font-size:12px;line-height:1.5;color:var(--lcd-dim)">Choose how Line B should deliver alongside Line A.</div>${modes.map((m,i)=>`<div class="listrow ${i===ctx.listIndex?'selected':''}">${m}<span class="meta">${m==='Piggyback'?'Line A pauses':'both run'}</span></div>`).join('')}<div class="prompt">Use ▲▼ then [Choose]</div>`, softkeys:['Choose','','','Cancel'], ledA: ctx.programs.A&&ctx.programs.A.running?'on-blink':'off', ledB:'off',ledAC:'on',ledAlarm:'off' };
+    },
+    on: {
+      'PRESS_SELECT': (dir) => { if(dir==='down')ctx.listIndex=Math.min(1,ctx.listIndex+1); if(dir==='up')ctx.listIndex=Math.max(0,ctx.listIndex-1); render(); },
+      'SOFTKEY_Choose': () => { ctx.entered.lineBMode = ['Piggyback','Concurrent'][ctx.listIndex]; fireEvent('line_b_mode_selected',{mode:ctx.entered.lineBMode}); transition('D-01'); },
+      'SOFTKEY_Cancel': () => transition('G-01')
+    }
+  },
+  'R-01': {
+    render: () => {
+      const p = ctx.programs.A; if (!p) return STATES['G-01'].render();
+      const remaining = Math.max(0, p.vtbi - ctx.volInfusedA);
+      const bolusBadge = ctx.bolusActive?' <span class="badge" style="background:#b8332a">BOLUS</span>':'';
+      return {
+        screen: `<div class="title-bar"><div>Delivering — Line A${bolusBadge}</div><div class="status-icons"><span>${ctx.battery}%</span></div></div>
+          <div class="running-bar"><div class="dot"></div><div style="flex:1"><b>${p.drug}</b> · ${p.concentration}</div></div>
+          <div style="padding:8px 4px">
+            <div class="line-row"><span>Rate</span><span class="v">${(ctx.bolusActive?bolusRate():p.rate).toFixed(2)} mL/hr</span></div>
+            ${p.doseRate?`<div class="line-row"><span>Dose</span><span class="v">${p.doseRate} ${p.unit}</span></div>`:''}
+            <div class="line-row"><span>Volume Infused</span><span class="v">${ctx.volInfusedA.toFixed(1)} mL</span></div>
+            <div class="line-row"><span>VTBI Remaining</span><span class="v">${remaining.toFixed(1)} mL</span></div>
+            ${ctx.bolusActive?`<div class="line-row"><span>Bolus</span><span class="v">${ctx.bolusAmount} mg / ${ctx.bolusDuration} min</span></div>`:''}
+          </div>
+          <div class="prompt">[Titrate] · [Bolus] · [STOP]</div>`,
+        softkeys:['Titrate','Bolus','','Back Prime'], ledA:'on-blink',ledB:'off',ledAC:'on',ledAlarm:'off'
+      };
+    },
+    on: {
+      'SOFTKEY_Titrate': () => { if (!ctx.programs.A) return; ctx.titrationOldDose = ctx.programs.A.doseRate||ctx.programs.A.rate; fireEvent('titration_started',{oldDose:ctx.titrationOldDose}); transition('R-TITRATE'); },
+      'SOFTKEY_Bolus': () => { fireEvent('bolus_initiated'); transition('BD-01'); },
+      'PRESS_STOP': () => { stopDeliveryTickPrimary(); if (ctx.programs.A) ctx.programs.A.running = false; fireEvent('delivery_stopped',{volInfused:ctx.volInfusedA}); checkCompletion('stop'); transition('G-01'); }
+    }
+  },
+  'R-TITRATE': {
+    onEnter: () => { const p = ctx.programs.A; ctx.entered.titrateField = p.patientWeight!=null?'Dose Rate':'Rate'; ctx.entered.titrateValue = ''; },
+    render: () => {
+      const p = ctx.programs.A;
+      const isWeight = p.patientWeight!=null;
+      const editField = ctx.entered.titrateField;
+      const editUnit = isWeight?p.unit:'mL/hr';
+      const oldVal = isWeight?p.doseRate:p.rate;
+      const newVal = ctx.entered.titrateValue;
+      return { screen: `<div class="title-bar"><div>Titrate — Line A</div></div>
+        <div style="padding:10px 4px;line-height:1.7;font-size:13px">
+          <div class="line-row"><span>Drug</span><span class="v">${p.drug}</span></div>
+          <div class="line-row"><span>Current ${editField}</span><span class="v">${oldVal} ${editUnit}</span></div>
+          <div class="field-row active" style="margin-top:8px">
+            <span>New ${editField}</span><span class="v">${newVal!==''?newVal:'— — —'}<span class="blink-cursor"></span></span><span class="u">${editUnit}</span>
+          </div></div>
+        <div class="prompt">Enter new value · [START] to confirm</div>`, softkeys:['','','','Cancel'], ledA:'on-blink',ledB:'off',ledAC:'on',ledAlarm:'off' };
+    },
+    on: {
+      'PRESS_NUMBER': (d) => { ctx.entered.titrateValue = String(ctx.entered.titrateValue||'')+d; if (ctx.entered.titrateValue.includes('.')) ctx.entered.titrateValue = parseFloat(ctx.entered.titrateValue); render(); },
+      'PRESS_DECIMAL': () => { if (ctx.entered.titrateValue==='') ctx.entered.titrateValue='0.'; else if (!String(ctx.entered.titrateValue).includes('.')) ctx.entered.titrateValue = String(ctx.entered.titrateValue)+'.'; render(); },
+      'PRESS_CLEAR': () => { ctx.entered.titrateValue=''; render(); },
+      'PRESS_START': () => {
+        const newDose = parseFloat(ctx.entered.titrateValue);
+        if (!newDose) { showToast('Enter a value','warn'); return; }
+        const p = ctx.programs.A;
+        if (p.patientWeight!=null) { p.doseRate = newDose; autoCalcRateFromDose(); } else { p.rate = newDose; }
+        ctx.titrationDone = true; ctx.titrationNewDose = newDose;
+        fireEvent('titration_completed',{oldDose:ctx.titrationOldDose,newDose});
+        showToast('Titration confirmed','info');
+        checkCompletion('titrated');
+        transition('R-01');
+      },
+      'SOFTKEY_Cancel': () => transition('R-01')
+    }
+  },
+  'BD-01': {
+    onEnter: () => { ctx.entered.bolusAmount=''; ctx.entered.bolusDuration=''; ctx.entered.bolusFieldIndex=0; },
+    render: () => {
+      const fields = [{label:'Bolus Amount',value:ctx.entered.bolusAmount,unit:'mg'},{label:'Duration',value:ctx.entered.bolusDuration,unit:'min'}];
+      return { screen: `<div class="title-bar"><div>Bolus Dose — Line A</div></div><div style="padding:6px 4px;line-height:1.5;font-size:12px;color:var(--lcd-dim);margin-bottom:6px">From current container · ${ctx.programs.A.drug}</div>${fields.map((f,i)=>`<div class="field-row ${i===ctx.entered.bolusFieldIndex?'active':''}"><span>${f.label}</span><span class="v">${f.value!==''&&f.value!=null?f.value:'— — —'}${i===ctx.entered.bolusFieldIndex?'<span class="blink-cursor"></span>':''}</span><span class="u">${f.unit}</span></div>`).join('')}<div class="prompt">Use ▲▼ · [START] to deliver bolus</div>`, softkeys:['','','','Cancel'], ledA:'on-blink',ledB:'off',ledAC:'on',ledAlarm:'off' };
+    },
+    on: {
+      'PRESS_SELECT': (dir) => { if(dir==='down')ctx.entered.bolusFieldIndex=Math.min(1,ctx.entered.bolusFieldIndex+1); if(dir==='up')ctx.entered.bolusFieldIndex=Math.max(0,ctx.entered.bolusFieldIndex-1); render(); },
+      'PRESS_NUMBER': (d) => { const k=ctx.entered.bolusFieldIndex===0?'bolusAmount':'bolusDuration'; ctx.entered[k]=String(ctx.entered[k]||'')+d; if(ctx.entered[k].includes('.'))ctx.entered[k]=parseFloat(ctx.entered[k]); render(); },
+      'PRESS_DECIMAL': () => { const k=ctx.entered.bolusFieldIndex===0?'bolusAmount':'bolusDuration'; const v=ctx.entered[k]; if(v==='')ctx.entered[k]='0.'; else if(!String(v).includes('.'))ctx.entered[k]=String(v)+'.'; render(); },
+      'PRESS_CLEAR': () => { const k=ctx.entered.bolusFieldIndex===0?'bolusAmount':'bolusDuration'; ctx.entered[k]=''; render(); },
+      'PRESS_START': () => {
+        const amt=parseFloat(ctx.entered.bolusAmount), dur=parseFloat(ctx.entered.bolusDuration);
+        if (!amt||!dur) { showToast('Enter amount and duration','warn'); return; }
+        ctx.bolusActive=true; ctx.bolusAmount=amt; ctx.bolusDuration=dur; ctx.bolusStart=Date.now(); ctx.bolusDelivered=true;
+        fireEvent('bolus_delivered',{amount:amt,duration:dur});
+        showToast('Bolus delivering','info');
+        setTimeout(() => { ctx.bolusActive=false; fireEvent('bolus_complete'); if (currentState==='R-01') render(); }, 4000);
+        transition('R-01');
+      },
+      'SOFTKEY_Cancel': () => transition('R-01')
+    }
+  },
+  'R-03': {
+    render: () => {
+      const a = ctx.programs.A, b = ctx.programs.B;
+      return { screen: `<div class="title-bar"><div>Piggyback — Line B</div><div class="status-icons"><span>${ctx.battery}%</span></div></div>
+        <div class="line-region">
+          <div class="line-block standby"><div class="line-label">LINE A <span class="badge">STBY</span></div><div class="line-row"><span>Drug</span><span class="v">${truncate(a.drug,12)}</span></div><div class="line-row"><span>Will resume after B</span></div></div>
+          <div class="line-block running"><div class="line-label">LINE B <span class="badge">RUN</span></div><div class="line-row"><span>Drug</span><span class="v">${truncate(b.drug,12)}</span></div><div class="line-row"><span>Rate</span><span class="v">${b.rate.toFixed(1)} mL/hr</span></div><div class="line-row"><span>Infused</span><span class="v">${ctx.volInfusedB.toFixed(1)} / ${b.vtbi} mL</span></div></div>
+        </div><div class="prompt">Piggyback delivering · [STOP]</div>`, softkeys:['','','',''], ledA:'on',ledB:'on-blink',ledAC:'on',ledAlarm:'off' };
+    },
+    on: { 'PRESS_STOP': () => { stopDeliveryTickSecondary(); if (ctx.programs.B) ctx.programs.B.running = false; fireEvent('delivery_stopped',{line:'B',volInfused:ctx.volInfusedB}); transition('G-01'); } }
+  },
+  'A-VTBI': {
+    onEnter: () => { stopDeliveryTickPrimary(); stopDeliveryTickSecondary(); const s=SCENARIOS[currentScenarioId]; if (s.completionMode!=='silence_and_stop') evaluateScenario(); },
+    render: () => {
+      const line = ctx.entered.vtbiCompletedLine||'A'; const p = ctx.programs[line];
+      return { screen: `<div class="alarm-banner">!! VTBI COMPLETE — LINE ${line}</div><div class="center-msg" style="padding:16px 8px"><b>${p.drug}</b><br>${p.vtbi} mL delivered<br><br>${line==='B'?'Line A will resume.':'Pump switched to KVO at 1.0 mL/hr.'}</div>`, softkeys:['Add VTBI','','','Stop'], ledA:'on',ledB:'off',ledAC:'on',ledAlarm:'amber' };
+    },
+    on: {
+      'PRESS_AUDIO_PAUSE': () => { ctx.alarmSilenced = true; fireEvent('alarm_silenced'); showToast('Audio paused 2 min','info'); checkCompletion('silence'); },
+      'SOFTKEY_Stop': () => { fireEvent('scenario_completed'); checkCompletion('stop_after_silence'); transition('G-01'); },
+      'PRESS_STOP': () => { fireEvent('scenario_completed'); checkCompletion('stop_after_silence'); transition('G-01'); }
+    }
+  },
+  'A-OCC-D': {
+    onEnter: () => { stopDeliveryTickPrimary(); ctx.alarmStartTime = Date.now(); if (ctx.programs.A) ctx.programs.A.running = false; fireEvent('alarm_raised',{type:'distal_occlusion'}); },
+    render: () => ({ screen: `<div class="alarm-banner">!!! DISTAL OCCLUSION — LINE A</div><div class="center-msg" style="padding:14px 8px">Line A halted.<br><br>Check distal line for kinks,<br>closed clamps, or infiltration.<br><br>Resolve, then press [Restart].</div>`, softkeys:['Restart','','','Stop'], ledA:'off',ledB:'off',ledAC:'on',ledAlarm:'red' }),
+    on: {
+      'SOFTKEY_Restart': () => { ctx.complicationResolvedTime = ((Date.now()-ctx.alarmStartTime)/1000).toFixed(1); fireEvent('alarm_resolved',{responseSeconds:ctx.complicationResolvedTime}); if (ctx.programs.A) { ctx.programs.A.running = true; startDeliveryTickPrimary(); } showToast('Occlusion cleared','info'); transition('R-01'); },
+      'PRESS_AUDIO_PAUSE': () => { fireEvent('alarm_silenced'); showToast('Audio paused','info'); },
+      'SOFTKEY_Stop': () => { fireEvent('scenario_abandoned_at_alarm'); transition('G-01'); },
+      'PRESS_STOP': () => { fireEvent('scenario_abandoned_at_alarm'); transition('G-01'); }
+    }
+  }
+};
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function truncate(s,n) { return s.length>n?s.substring(0,n-1)+'…':s; }
+
+function setupProgrammingFields() {
+  const c = ctx.concentrationSelected, d = ctx.drugSelected;
+  if (c.mode==='fluid') {
+    ctx.fields = [{label:'Rate',value:null,unit:'mL/hr',editable:true,editing:true},{label:'VTBI',value:null,unit:'mL',editable:true,editing:false}];
+    ctx.fieldIndex = 0;
+  } else if (c.mode==='weight') {
+    const parts = c.label.match(/([\d,]+\.?\d*)\s*[a-zA-Z]+\s*\/\s*([\d,]+\.?\d*)/);
+    const drugAmount = parts?parseFloat(parts[1].replace(/,/g,'')):0;
+    const diluent = parts?parseFloat(parts[2].replace(/,/g,'')):0;
+    ctx.fields = [
+      { label:'Drug Amount', value:drugAmount, unit: d.name.toLowerCase().includes('insulin')||d.name.toLowerCase().includes('heparin')?'units':'mg', editable:false },
+      { label:'Diluent', value:diluent, unit:'mL', editable:false },
+      { label:'Patient Weight', value:null, unit:'kg', editable:true, editing:true },
+      { label:'Dose Rate', value:null, unit:c.unit, editable:true },
+      { label:'Rate', value:null, unit:'mL/hr', editable:false },
+      { label:'VTBI', value:null, unit:'mL', editable:true }
+    ];
+    ctx.fieldIndex = 2;
+  } else {
+    const parts = c.label.match(/([\d,]+\.?\d*)\s*[a-zA-Z]+\s*\/\s*([\d,]+\.?\d*)/);
+    const drugAmount = parts?parseFloat(parts[1].replace(/,/g,'')):0;
+    const diluent = parts?parseFloat(parts[2].replace(/,/g,'')):0;
+    ctx.fields = [
+      { label:'Drug Amount', value:drugAmount, unit:'mg', editable:false },
+      { label:'Diluent', value:diluent, unit:'mL', editable:false },
+      { label:'Dose Rate', value:null, unit:c.unit, editable:true, editing:true },
+      { label:'Rate', value:null, unit:'mL/hr', editable:false },
+      { label:'VTBI', value:null, unit:'mL', editable:true }
+    ];
+    ctx.fieldIndex = 2;
+  }
+  ctx.fields.forEach((f,i)=>f.editing=(i===ctx.fieldIndex&&f.editable));
+}
+function getField(label) { return ctx.fields.find(f=>f.label===label); }
+
+function autoCalc() {
+  const c = ctx.concentrationSelected; if (!c||c.mode==='fluid') return;
+  if (c.mode==='weight') autoCalcRateFromDose(); else autoCalcRateFromDoseSimple();
+}
+function autoCalcRateFromDose() {
+  const w = parseFloat(getField('Patient Weight')?.value);
+  const d = parseFloat(getField('Dose Rate')?.value);
+  const r = getField('Rate'); if (!w||!d||!r) return;
+  const drugAmount = getField('Drug Amount').value, diluent = getField('Diluent').value;
+  const conc = drugAmount/diluent; const unit = ctx.concentrationSelected.unit;
+  let mlPerHr;
+  if (unit.includes('/kg/hr')) mlPerHr=(d*w)/conc;
+  else if (unit.includes('/kg/min')) { if (unit.startsWith('mcg')) mlPerHr=(d*w*60)/(conc*1000); else mlPerHr=(d*w*60)/conc; }
+  r.value = parseFloat(mlPerHr.toFixed(2));
+}
+function autoCalcRateFromDoseSimple() {
+  const d = parseFloat(getField('Dose Rate')?.value); const r = getField('Rate'); if (!d||!r) return;
+  const drugAmount = getField('Drug Amount').value, diluent = getField('Diluent').value;
+  const conc = drugAmount/diluent; const unit = ctx.concentrationSelected.unit;
+  let mlPerHr;
+  if (unit.includes('/hr')) mlPerHr=d/conc;
+  else if (unit.includes('/min')) { if (unit.startsWith('mcg')) mlPerHr=(d*60)/(conc*1000); else mlPerHr=(d*60)/conc; }
+  r.value = parseFloat(mlPerHr.toFixed(2));
+}
+function commitProgram() {
+  const c = ctx.concentrationSelected; const line = ctx.currentLine;
+  const p = { drug: ctx.drugSelected.name, concentration: c.label, unit: c.unit, mode: c.mode, rate: parseFloat(getField('Rate')?.value||0), vtbi: parseFloat(getField('VTBI').value), running: false, softLimitOverride: ctx.softLimitOverridden };
+  if (getField('Patient Weight')) p.patientWeight = parseFloat(getField('Patient Weight').value);
+  if (getField('Dose Rate')) p.doseRate = parseFloat(getField('Dose Rate').value);
+  if (line==='B') p.mode = ctx.entered.lineBMode || 'Piggyback';
+  if (c.mode==='fluid') p.rate = parseFloat(getField('Rate').value);
+  ctx.programs[line] = p;
+}
+function bolusRate() {
+  const p = ctx.programs.A; if (!p) return 0;
+  const parts = p.concentration.match(/([\d,]+\.?\d*)\s*[a-zA-Z]+\s*\/\s*([\d,]+\.?\d*)/);
+  const drugAmount = parts?parseFloat(parts[1].replace(/,/g,'')):0; const diluent = parts?parseFloat(parts[2].replace(/,/g,'')):0;
+  const conc = drugAmount/diluent; const mlNeeded = ctx.bolusAmount/conc; const hr = ctx.bolusDuration/60;
+  return mlNeeded/hr;
+}
+
+// ============================================================
+//  DELIVERY
+// ============================================================
+let tickPrimary = null, tickSecondary = null;
+const SIM_TARGET_SEC = 20;
+function startDeliveryTickPrimary() {
+  if (tickPrimary) return; if (!ctx.programs.A) return;
+  const p = ctx.programs.A;
+  const realPerSec = p.rate/3600; const simFactor = p.vtbi/SIM_TARGET_SEC/realPerSec;
+  tickPrimary = setInterval(() => {
+    if (!ctx.programs.A||!ctx.programs.A.running) return;
+    const currentRate = ctx.bolusActive?bolusRate():p.rate;
+    const adjPerSec = currentRate/3600;
+    const adjFactor = currentRate===p.rate?simFactor:simFactor*(currentRate/p.rate);
+    ctx.volInfusedA += adjPerSec*adjFactor*0.1;
+    checkComplications(); checkTitrationTrigger(); checkBolusTrigger();
+    if (ctx.volInfusedA>=p.vtbi) { ctx.volInfusedA=p.vtbi; ctx.entered.vtbiCompletedLine='A'; fireEvent('vtbi_complete',{line:'A'}); transition('A-VTBI'); }
+    else if (currentState==='R-01'||currentState==='G-01') render();
+  }, 100);
+}
+function stopDeliveryTickPrimary() { if (tickPrimary) { clearInterval(tickPrimary); tickPrimary=null; } }
+function startDeliveryTickSecondary() {
+  if (tickSecondary) return; if (!ctx.programs.B) return;
+  const p = ctx.programs.B;
+  const realPerSec = p.rate/3600; const simFactor = p.vtbi/SIM_TARGET_SEC/realPerSec;
+  tickSecondary = setInterval(() => {
+    if (!ctx.programs.B||!ctx.programs.B.running) return;
+    ctx.volInfusedB += realPerSec*simFactor*0.1;
+    if (ctx.volInfusedB>=p.vtbi) {
+      ctx.volInfusedB = p.vtbi; ctx.programs.B.running = false;
+      fireEvent('vtbi_complete',{line:'B'}); stopDeliveryTickSecondary();
+      if (ctx.programs.A&&!ctx.programs.A.running) { ctx.programs.A.running=true; startDeliveryTickPrimary(); fireEvent('line_a_resumed'); }
+      ctx.entered.vtbiCompletedLine='B';
+      const s = SCENARIOS[currentScenarioId];
+      if (s.expected.lineB) transition('A-VTBI'); else if (currentState==='R-03') transition('R-01');
+    } else if (currentState==='R-03') render();
+  }, 100);
+}
+function stopDeliveryTickSecondary() { if (tickSecondary) { clearInterval(tickSecondary); tickSecondary=null; } }
+
+function checkComplications() {
+  const s = SCENARIOS[currentScenarioId];
+  if (!s.complications||ctx.complicationFired) return;
+  for (const c of s.complications) {
+    if (ctx.volInfusedA>=c.triggerVolume) { ctx.complicationFired=true; if (c.type==='A-OCC-D') { showToast('⚠ Distal occlusion','warn'); transition('A-OCC-D'); } }
+  }
+}
+function checkTitrationTrigger() {
+  const s = SCENARIOS[currentScenarioId];
+  if (!s.requiresTitration||ctx.titrationPrompted) return;
+  if (ctx.volInfusedA>=s.requiresTitration.triggerVolume) { ctx.titrationPrompted=true; showToast(`Glucose elevated — titrate UP to ${s.requiresTitration.newDose}`,'info'); fireEvent('titration_prompted',{newDose:s.requiresTitration.newDose}); }
+}
+function checkBolusTrigger() {
+  const s = SCENARIOS[currentScenarioId];
+  if (!s.requiresBolus||ctx.bolusPrompted) return;
+  if (ctx.volInfusedA>=s.requiresBolus.triggerVolume) { ctx.bolusPrompted=true; showToast(`Patient requests bolus — ${s.requiresBolus.amount} mg / ${s.requiresBolus.duration} min`,'info'); fireEvent('bolus_prompted',{amount:s.requiresBolus.amount,duration:s.requiresBolus.duration}); }
+}
+
+// ============================================================
+//  COMPLETION CHECKS
+// ============================================================
+function checkCompletion(trigger) {
+  if (ctx.scenarioFinalized) return;
+  const s = SCENARIOS[currentScenarioId];
+  if (!s.completionMode) return;
+  if (s.completionMode==='reach_state') {
+    if (currentState===s.completionTarget) {
+      if (s.completionTarget==='R-01') { if (ctx.programs.A&&ctx.programs.A.running) finalizeScenario(); }
+      else finalizeScenario();
+    }
+  } else if (s.completionMode==='stop_running') {
+    if (trigger==='stop'&&ctx.programs.A&&!ctx.programs.A.running&&currentState==='G-01') finalizeScenario();
+  } else if (s.completionMode==='silence_and_stop') {
+    if (trigger==='stop_after_silence'&&ctx.alarmSilenced) finalizeScenario();
+  } else if (s.completionMode==='drug_selected') {
+    if (trigger==='drug_selected'&&ctx.drugSelected&&ctx.drugSelected.name===s.completionTarget) finalizeScenario();
+  } else if (s.completionMode==='backprime_held') {
+    if (trigger==='backprime'&&ctx.backprimeDuration>=3) finalizeScenario();
+  } else if (s.completionMode==='titration_done') {
+    if (trigger==='titrated') finalizeScenario();
+  }
+}
+function finalizeScenario() { if (ctx.scenarioFinalized) return; ctx.scenarioFinalized = true; evaluateScenario(); }
+
+function applyScenarioPresets() {
+  const s = SCENARIOS[currentScenarioId]; if (!s.presets) return;
+  ctx.selectedCCA = 'Critical Care'; ctx.drugLibrary = DRUG_LIBRARY['Critical Care'];
+  if (s.presets.poweredOn) ctx.poweredOn = true;
+  if (s.presets.lineA) {
+    const pa = s.presets.lineA;
+    ctx.programs.A = { drug:pa.drug, concentration:pa.concentration, rate:pa.rate, vtbi:pa.vtbi, running:!!pa.running, mode:pa.mode||'fluid', unit:pa.unit||'mL/hr' };
+    ctx.volInfusedA = pa.volInfused||0;
+  }
+}
+
+// ============================================================
+//  EVAL
+// ============================================================
+function evaluateScenario() {
+  const s = SCENARIOS[currentScenarioId];
+  const reasons = []; let pass = true;
+  if (s.completionMode) {
+    if (s.completionMode==='reach_state'&&currentState!==s.completionTarget) { pass=false; reasons.push(`Did not reach ${s.completionTarget}`); }
+    if (s.completionMode==='stop_running'&&ctx.programs.A&&ctx.programs.A.running) { pass=false; reasons.push('Infusion still running'); }
+    if (s.completionMode==='silence_and_stop'&&!ctx.alarmSilenced) { pass=false; reasons.push('Alarm not silenced'); }
+    if (s.completionMode==='drug_selected') { if (!ctx.drugSelected||ctx.drugSelected.name!==s.completionTarget) { pass=false; reasons.push(`Did not select ${s.completionTarget}`); } }
+    if (s.completionMode==='backprime_held'&&ctx.backprimeDuration<3) { pass=false; reasons.push(`Backprime too short: ${ctx.backprimeDuration.toFixed(1)}s (need ≥3s)`); }
+    if (s.completionMode==='titration_done'&&!ctx.titrationDone) { pass=false; reasons.push('Titration not completed'); }
+    if (s.expected.lineA?.minRate) {
+      const p = ctx.programs.A;
+      if (!p) { pass=false; reasons.push('No program'); }
+      else {
+        if (p.drug!==s.expected.lineA.drug) { pass=false; reasons.push(`Drug must be ${s.expected.lineA.drug}`); }
+        if (p.rate<s.expected.lineA.minRate||p.rate>s.expected.lineA.maxRate) { pass=false; reasons.push(`Rate ${p.rate} not in range ${s.expected.lineA.minRate}-${s.expected.lineA.maxRate}`); }
+      }
+    }
+    if (s.requiresClearUse&&!ctx.clearUsed) reasons.push('Did not use CLEAR (informational)');
+    if (s.expected.lineA?.rate&&!s.expected.lineA.minRate) {
+      const p = ctx.programs.A;
+      if (!p) { pass=false; reasons.push('No program'); }
+      else if (Math.abs(p.rate-s.expected.lineA.rate)/s.expected.lineA.rate>0.05) { pass=false; reasons.push(`Rate off: ${p.rate} vs ${s.expected.lineA.rate}`); }
+    }
+    if (s.expected.titration&&s.expected.titration.newDose) {
+      if (!ctx.titrationDone) { pass=false; reasons.push('Titration not performed'); }
+      else if (Math.abs(ctx.titrationNewDose-s.expected.titration.newDose)/s.expected.titration.newDose>0.05) { pass=false; reasons.push(`Titration value off: ${ctx.titrationNewDose} vs ${s.expected.titration.newDose}`); }
+    }
+    if (s.requiresHardLimitHit) {
+      if (!ctx.hardLimitHit) reasons.push('Did not trigger hard limit (informational)');
+      // Still check value matches
+      if (s.expected.lineA) {
+        const e = s.expected.lineA; const p = ctx.programs.A;
+        if (!p) { pass=false; reasons.push('No final program'); }
+        else {
+          if (e.drug&&p.drug!==e.drug) { pass=false; reasons.push(`Wrong drug`); }
+          if (e.patientWeight&&Math.abs((p.patientWeight||0)-e.patientWeight)>0.5) { pass=false; reasons.push(`Weight off`); }
+          if (e.doseRate&&Math.abs((p.doseRate||0)-e.doseRate)/e.doseRate>0.05) { pass=false; reasons.push(`Dose off: ${p.doseRate} vs ${e.doseRate}`); }
+          if (e.vtbi&&Math.abs(p.vtbi-e.vtbi)>1) { pass=false; reasons.push(`VTBI off`); }
+        }
+      }
+    }
+  } else {
+    if (s.expected.lineA) {
+      const e = s.expected.lineA; const p = ctx.programs.A;
+      if (!p) { reasons.push('Line A not programmed'); pass=false; }
+      else {
+        if (e.drug&&p.drug!==e.drug) { reasons.push(`Line A wrong drug: ${p.drug} (expected ${e.drug})`); pass=false; }
+        if (e.concentration&&p.concentration!==e.concentration) { reasons.push(`Line A wrong concentration`); pass=false; }
+        if (e.patientWeight&&Math.abs((p.patientWeight||0)-e.patientWeight)>0.5) { reasons.push(`Weight off`); pass=false; }
+        if (e.doseRate&&Math.abs((p.doseRate||0)-e.doseRate)/e.doseRate>0.05) { reasons.push(`Dose off: ${p.doseRate} vs ${e.doseRate}`); pass=false; }
+        if (e.rate&&Math.abs((p.rate||0)-e.rate)/e.rate>0.05) { reasons.push(`Rate off: ${p.rate} vs ${e.rate}`); pass=false; }
+        if (e.vtbi&&Math.abs(p.vtbi-e.vtbi)>1) { reasons.push(`VTBI off`); pass=false; }
+      }
+    }
+    if (s.expected.lineB) {
+      const e = s.expected.lineB; const p = ctx.programs.B;
+      if (!p) { reasons.push('Line B not programmed'); pass=false; }
+      else {
+        if (e.drug&&p.drug!==e.drug) { reasons.push(`Line B wrong drug: ${p.drug} (expected ${e.drug})`); pass=false; }
+        if (e.concentration&&p.concentration!==e.concentration) { reasons.push(`Line B wrong concentration`); pass=false; }
+        if (e.doseRate&&Math.abs((p.doseRate||0)-e.doseRate)/e.doseRate>0.1) { reasons.push(`Line B dose off`); pass=false; }
+        if (e.rate&&Math.abs(p.rate-e.rate)/e.rate>0.1) { reasons.push(`Line B rate off`); pass=false; }
+        if (e.vtbi&&Math.abs(p.vtbi-e.vtbi)>1) { reasons.push(`Line B VTBI off`); pass=false; }
+        if (e.mode&&p.mode!==e.mode) { reasons.push(`Line B mode wrong: ${p.mode} vs ${e.mode}`); pass=false; }
+      }
+    }
+    if (s.expected.titration) {
+      if (!ctx.titrationDone) { reasons.push('Titration not performed'); pass=false; }
+      else if (Math.abs(ctx.titrationNewDose-s.expected.titration.newDose)/s.expected.titration.newDose>0.05) { reasons.push(`Titration value off`); pass=false; }
+    }
+    if (s.expected.bolus) {
+      if (!ctx.bolusDelivered) { reasons.push('Bolus not delivered'); pass=false; }
+      else if (Math.abs(ctx.bolusAmount-s.expected.bolus.amount)/s.expected.bolus.amount>0.1) { reasons.push(`Bolus amount off`); pass=false; }
+    }
+    if (s.complications&&s.complications.length>0) {
+      if (!ctx.complicationFired) reasons.push('Complication not triggered');
+      else if (!ctx.complicationResolvedTime) { reasons.push('Complication not resolved'); pass=false; }
+    }
+    if (ctx.softLimitOverridden) { reasons.push('Soft limit overridden without justification'); pass=false; }
+  }
+
+  const elapsed = (Date.now()-ctx.scenarioStart)/1000;
+  const benchmark = s.benchmark || 120;
+  const mastery = pass && ctx.errorCount===0 && elapsed<=benchmark;
+
+  fireEvent('scenario_evaluated',{pass,errors:ctx.errorCount,elapsed:elapsed.toFixed(1),benchmark,mastery});
+  saveProgressRecord({ student:studentName, mode:userMode, scenarioId:currentScenarioId, scenarioName:s.name, tier:s.tier, timestamp:new Date().toISOString(), pass, mastery, elapsedSeconds:Math.round(elapsed), benchmark, errorCount:ctx.errorCount });
+  renderScenarioList();
+
+  const v = document.getElementById('verdict');
+  const nextId = pass ? findNextScenario(currentScenarioId) : null;
+  const nextHtml = nextId ? `<div class="next-up">Next: <b>${SCENARIOS[nextId].name}</b><br><button onclick="selectScenario('${nextId}')" style="margin-top:6px">Try it →</button></div>` : (pass?`<div class="next-up"><b>All scenarios complete! 🎉</b></div>`:'');
+
+  if (mastery) {
+    v.className='verdict show mastery';
+    v.innerHTML = `★ Mastery-level<br><span class="reasons">Finished in ${elapsed.toFixed(0)}s (target ${benchmark}s) with 0 errors.</span>${nextHtml}`;
+  } else if (pass) {
+    v.className='verdict show pass';
+    const benchNote = userMode==='nurse' ? `${elapsed.toFixed(0)}s vs ${benchmark}s benchmark · ` : '';
+    v.innerHTML = `✓ Complete<br><span class="reasons">${benchNote}${ctx.errorCount} error event(s)${reasons.length?'.<br>Notes: '+reasons.join('; '):'.'}</span>${nextHtml}`;
+  } else {
+    v.className='verdict show fail';
+    v.innerHTML = `✗ Not yet complete<br><span class="reasons">${reasons.join('<br>')}</span>`;
+  }
+}
+
+function findNextScenario(curId) {
+  const ids = Object.keys(SCENARIOS).filter(id => userMode==='student' || SCENARIOS[id].tier !== 1 || !collapsedTiers[1]);
+  const passes = getStudentPassesByScenario(studentName);
+  const curIdx = ids.indexOf(curId);
+  for (let i=curIdx+1; i<ids.length; i++) if (!passes[ids[i]]) return ids[i];
+  for (const id of ids) { if (id===curId) continue; if (!passes[id]) return id; }
+  return null;
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function render() {
+  const s = STATES[currentState]; if (!s) return;
+  const out = s.render();
+  document.getElementById('screen-content').innerHTML = out.screen;
+  document.getElementById('screen').classList.toggle('alarm-active', out.ledAlarm==='red');
+  const sk = document.getElementById('softkeys'); sk.innerHTML = '';
+  out.softkeys.forEach(label => { const b = document.createElement('button'); b.className = 'softkey'+(label?'':' empty'); b.textContent = label; if (label) b.addEventListener('click', () => dispatch('SOFTKEY_'+label)); sk.appendChild(b); });
+  document.getElementById('led-line-a').className = `led blink ${out.ledA==='on-blink'||out.ledA==='on'?'active green':''}`;
+  document.getElementById('led-line-b').className = `led blink ${out.ledB==='on-blink'||out.ledB==='on'?'active green':''}`;
+  document.getElementById('led-ac').className = `led ${out.ledAC==='on'?'active green':''}`;
+  document.getElementById('led-alarm').className = `led ${out.ledAlarm==='red'?'active red':out.ledAlarm==='amber'?'active amber':''}`;
+}
+
+function dispatch(event, payload) {
+  const h = STATES[currentState] && STATES[currentState].on && STATES[currentState].on[event];
+  if (h) h(payload); else fireError('unexpected_input',{event,state:currentState});
+}
+function handleKeypadDigit(digit) {
+  if (currentState==='D-02'&&LETTER_MAP[digit]) {
+    const now = Date.now(); const buf = ctx.letterBuffer;
+    if (buf.key===digit&&(now-buf.ts)<1200) buf.count = (buf.count+1)%LETTER_MAP[digit].length;
+    else { buf.key=digit; buf.count=0; }
+    buf.ts = now;
+    dispatch('PRESS_LETTER',LETTER_MAP[digit][buf.count]); return;
+  }
+  dispatch('PRESS_NUMBER',digit);
+}
+document.querySelectorAll('[data-digit]').forEach(btn=>btn.addEventListener('click',()=>handleKeypadDigit(btn.dataset.digit)));
+document.querySelector('[data-key="clear"]').addEventListener('click',()=>dispatch('PRESS_CLEAR'));
+document.querySelector('[data-key="decimal"]').addEventListener('click',()=>dispatch('PRESS_DECIMAL'));
+document.querySelector('[data-key="A"]').addEventListener('click',()=>dispatch('PRESS_A'));
+document.querySelector('[data-key="B"]').addEventListener('click',()=>dispatch('PRESS_B'));
+document.querySelector('[data-key="start"]').addEventListener('click',()=>dispatch('PRESS_START'));
+document.querySelector('[data-key="stop"]').addEventListener('click',()=>dispatch('PRESS_STOP'));
+document.querySelector('[data-key="power"]').addEventListener('click',()=>dispatch('PRESS_POWER'));
+document.querySelector('[data-key="audio"]').addEventListener('click',()=>dispatch('PRESS_AUDIO_PAUSE'));
+document.querySelector('[data-key="select-up"]').addEventListener('click',()=>dispatch('PRESS_SELECT','up'));
+document.querySelector('[data-key="select-down"]').addEventListener('click',()=>dispatch('PRESS_SELECT','down'));
+document.querySelector('[data-key="select-left"]').addEventListener('click',()=>dispatch('PRESS_SELECT','left'));
+document.querySelector('[data-key="select-right"]').addEventListener('click',()=>dispatch('PRESS_SELECT','right'));
+
+document.getElementById('btn-restart').addEventListener('click',restart);
+let logVisible = true;
+document.getElementById('btn-toggle-log').addEventListener('click',()=>{ logVisible = !logVisible; document.getElementById('event-log').style.display = logVisible?'':'none'; document.getElementById('btn-toggle-log').textContent = logVisible?'Hide log':'Show log'; });
+
+// ============================================================
+//  SCENARIO LIST
+// ============================================================
+function renderScenarioList() {
+  const container = document.getElementById('scenario-list');
+  const passes = getStudentPassesByScenario(studentName);
+  container.innerHTML = '';
+  // Tier visibility: in nurse mode, tier 1 starts collapsed but still visible
+  for (const tierNum of [1,2,3]) {
+    const list = Object.entries(SCENARIOS).filter(([id,s])=>s.tier===tierNum);
+    const passedCount = list.filter(([id])=>passes[id]).length;
+    const masteryCount = list.filter(([id])=>passes[id]?.mastery).length;
+    const el = document.createElement('div');
+    el.className = `tier tier-${tierNum} ${collapsedTiers[tierNum]?'collapsed':''}`;
+    const progressDisplay = userMode==='nurse' ? `${masteryCount}★ · ${passedCount}/${list.length}` : `${passedCount}/${list.length}`;
+    el.innerHTML = `
+      <div class="tier-header tier-${tierNum}" data-tier="${tierNum}">
+        <div class="tier-info">
+          <div class="tier-badge">${tierNum}</div>
+          <div class="tier-title">${TIER_META[tierNum].title}</div>
+        </div>
+        <div style="display:flex;align-items:center">
+          <div class="tier-progress">${progressDisplay}</div>
+          <div class="chevron">▼</div>
+        </div>
+      </div>
+      <div class="tier-content">
+        ${list.map(([id,s])=>{
+          const pass = passes[id];
+          const isActive = id===currentScenarioId;
+          const isMastery = pass?.mastery;
+          let metaParts = [];
+          if (pass) metaParts.push(`Best: ${pass.elapsedSeconds}s`);
+          if (userMode==='nurse' && !pass) metaParts.push(`Target: ${s.benchmark}s`);
+          if (pass) metaParts.push(new Date(pass.timestamp).toLocaleDateString());
+          return `
+            <div class="scenario-tile ${pass?'passed':''} ${isMastery?'mastery':''} ${isActive?'active':''}" data-scenario="${id}">
+              <div class="info">
+                <div class="name">${s.name}</div>
+                ${metaParts.length?`<div class="meta">${metaParts.join(' · ')}</div>`:''}
+              </div>
+              ${pass?`<div class="check">${isMastery?'★':'✓'}</div>`:''}
+            </div>`;
+        }).join('')}
+      </div>`;
+    container.appendChild(el);
+  }
+  container.querySelectorAll('.tier-header').forEach(h => h.addEventListener('click', () => { const t = parseInt(h.dataset.tier); collapsedTiers[t] = !collapsedTiers[t]; renderScenarioList(); }));
+  container.querySelectorAll('.scenario-tile').forEach(t => t.addEventListener('click', () => selectScenario(t.dataset.scenario)));
+}
+
+function selectScenario(id) {
+  currentScenarioId = id;
+  const tier = SCENARIOS[id].tier;
+  collapsedTiers = { 1: tier!==1, 2: tier!==2, 3: tier!==3 };
+  restart();
+}
+window.selectScenario = selectScenario;
+
+function renderScenarioCard() {
+  const s = SCENARIOS[currentScenarioId];
+  const card = document.getElementById('scenario-card');
+  const desc = userMode==='nurse' && s.descriptionNurse ? s.descriptionNurse : s.description;
+  let targetHtml = '';
+  if (s.expected.lineA && !s.completionMode) {
+    const e = s.expected.lineA;
+    targetHtml += `<div><span class="line-tag">LINE A</span> <b>${e.drug}</b> ${e.concentration||''}<br>`;
+    if (e.patientWeight) targetHtml += `Weight: <b>${e.patientWeight} kg</b> · `;
+    if (e.doseRate) targetHtml += `Dose: <b>${e.doseRate}</b><br>`;
+    if (e.rate && !e.doseRate) targetHtml += `Rate: <b>${e.rate} mL/hr</b><br>`;
+    if (e.vtbi) targetHtml += `VTBI: <b>${e.vtbi} mL</b></div>`;
+  }
+  if (s.expected.lineB) {
+    const e = s.expected.lineB;
+    targetHtml += `<div style="margin-top:6px"><span class="line-tag">LINE B</span> <b>${e.drug}</b> ${e.concentration||''}<br>`;
+    if (e.doseRate) targetHtml += `Dose: <b>${e.doseRate}</b> · `;
+    if (e.rate) targetHtml += `Rate: <b>${e.rate} mL/hr</b><br>`;
+    targetHtml += `VTBI: <b>${e.vtbi} mL</b> · Mode: <b>${e.mode}</b></div>`;
+  }
+  if (s.expected.titration) targetHtml += `<div style="margin-top:6px;color:var(--led-amber)"><b>Titration:</b> ${s.expected.titration.newDose}</div>`;
+  if (s.expected.bolus) targetHtml += `<div style="margin-top:6px;color:var(--led-amber)"><b>Bolus:</b> ${s.expected.bolus.amount} mg / ${s.expected.bolus.duration} min</div>`;
+  if (s.complications) targetHtml += `<div style="margin-top:6px;color:var(--led-red)"><b>⚠ Complication:</b> distal occlusion at ${s.complications[0].triggerVolume} mL</div>`;
+  if (userMode==='nurse') {
+    targetHtml = `<div style="margin-bottom:6px;color:var(--led-amber);font-weight:600">Target: ${s.benchmark}s</div>` + targetHtml;
+  }
+  card.innerHTML = `<div class="desc">${desc}</div>${targetHtml?`<div class="target">${targetHtml}</div>`:''}`;
+}
+
+// ============================================================
+//  MODAL
+// ============================================================
+let modalSelectedMode = 'student';
+document.querySelectorAll('.mode-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    modalSelectedMode = card.dataset.mode;
+  });
+});
+function showNameModal() {
+  document.getElementById('name-modal').style.display = 'flex';
+  document.getElementById('name-input').value = studentName||'';
+  modalSelectedMode = userMode || 'student';
+  document.querySelectorAll('.mode-card').forEach(c => c.classList.toggle('selected', c.dataset.mode === modalSelectedMode));
+  setTimeout(() => document.getElementById('name-input').focus(), 50);
+}
+function hideNameModal() { document.getElementById('name-modal').style.display = 'none'; }
+document.getElementById('name-submit').addEventListener('click', () => {
+  const v = document.getElementById('name-input').value.trim();
+  if (!v) { document.getElementById('name-input').focus(); return; }
+  studentName = v; userMode = modalSelectedMode;
+  setStudentName(v); setMode(userMode);
+  document.getElementById('student-display').textContent = v;
+  document.getElementById('mode-pill').textContent = userMode==='nurse'?'Nurse':'Student';
+  // Adjust tier defaults based on mode
+  collapsedTiers = userMode==='nurse' ? { 1: true, 2: false, 3: true } : { 1: false, 2: true, 3: true };
+  currentScenarioId = userMode==='nurse' ? 't2_ns_maintenance' : 't1_power_on';
+  hideNameModal();
+  renderScenarioList();
+  restart();
+});
+document.getElementById('name-input').addEventListener('keydown', (e) => { if (e.key==='Enter') document.getElementById('name-submit').click(); });
+document.getElementById('btn-change-student').addEventListener('click', () => { showNameModal(); });
+
+// ============================================================
+//  INIT
+// ============================================================
+function restart() {
+  stopDeliveryTickPrimary(); stopDeliveryTickSecondary();
+  ctx = freshContext(); applyScenarioPresets();
+  currentState = ctx.poweredOn ? 'G-01' : 'OFF';
+  stateHistory.length = 0;
+  document.getElementById('event-log').innerHTML = '';
+  document.getElementById('verdict').className = 'verdict'; document.getElementById('verdict').innerHTML = '';
+  document.getElementById('stat-time').textContent = '0s'; document.getElementById('stat-events').textContent = '0'; document.getElementById('stat-errors').textContent = '0';
+  ctx.scenarioStart = Date.now();
+  fireEvent('scenario_started',{scenarioId:currentScenarioId,student:studentName,mode:userMode});
+  if (ctx.poweredOn && ctx.programs.A && ctx.programs.A.running) startDeliveryTickPrimary();
+  renderScenarioList(); renderScenarioCard(); render();
+}
+function init() {
+  studentName = getStudentName(); userMode = getMode();
+  if (!studentName) { showNameModal(); }
+  else {
+    document.getElementById('student-display').textContent = studentName;
+    document.getElementById('mode-pill').textContent = userMode==='nurse'?'Nurse':'Student';
+    collapsedTiers = userMode==='nurse' ? { 1: true, 2: false, 3: true } : { 1: false, 2: true, 3: true };
+    currentScenarioId = userMode==='nurse' ? 't2_ns_maintenance' : 't1_power_on';
+    hideNameModal(); renderScenarioList(); restart();
+  }
+}
+init();
+</script>
+</body>
+</html>
