@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" href="icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Med Pass" />
+<title>Clinical Med Pass Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --panel:#ffffff; --ink:#1a2e2a; --inkSoft:#4a5d58;
+    --line:#e3ddcf; --gold:#b78a3e; --teal:#0f766e; --tlBg:#14201e; --tlLine:#2c3d39;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;padding:22px 14px 60px;}
+  .wrap{max-width:1000px;margin:0 auto;}
+  h1{font-family:'Sora',sans-serif;font-size:25px;font-weight:700;margin:0;letter-spacing:-.5px;}
+  h2{font-family:'Sora',sans-serif;font-size:20px;font-weight:700;margin:0;}
+  .sub{color:var(--inkSoft);font-size:14px;margin:6px 0 0;max-width:640px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(26,46,42,.04);}
+  .mono{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .inp{border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:16px;color:var(--ink);background:#fff;outline:none;font-family:inherit;}
+  .inp:focus{border-color:var(--teal);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-weight:600;cursor:pointer;transition:all .15s ease;border:none;font-size:15px;}
+  .btn:active{transform:scale(.98);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-primary{background:var(--teal);color:#fff;padding:13px 18px;font-family:'Sora',sans-serif;}
+  .btn-secondary{background:#fff;color:var(--ink);border:1px solid var(--line);padding:11px 16px;}
+  .btn-ghost{background:transparent;color:var(--inkSoft);padding:7px;}
+  .btn-ghost.bordered{border:1px solid var(--line);padding:7px 12px;font-size:13px;border-radius:8px;}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .label{font-size:11.5px;color:var(--inkSoft);font-weight:500;}
+  .student-card{border-left:5px solid;}
+  .patient-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fbfaf6;}
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;}
+  .photo{position:relative;width:60px;height:60px;}
+  .photo img{width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--line);}
+  .photo .x{position:absolute;top:-7px;right:-7px;background:var(--ink);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;}
+  .photobtn{width:100%;border-radius:8px;border:1.5px dashed;background:transparent;cursor:pointer;padding:11px;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;}
+  .med{display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 0;}
+  .med + .med{border-top:1px solid var(--line);}
+  .timeline{background:var(--tlBg);border-radius:14px;padding:22px 16px 14px;margin-bottom:16px;overflow-x:auto;}
+  .track{position:relative;height:92px;min-width:520px;}
+  .tick{position:absolute;top:0;bottom:18px;border-left:1px dashed var(--tlLine);}
+  .tick span{position:absolute;bottom:-16px;left:-14px;font-size:11px;color:#8fa39d;font-family:'IBM Plex Mono',monospace;}
+  .block{position:absolute;top:6px;height:60px;border-radius:8px;padding:5px 7px;color:#0c1614;overflow:hidden;min-width:46px;cursor:grab;touch-action:none;user-select:none;box-shadow:0 4px 10px rgba(0,0,0,.3);}
+  .block.warn{box-shadow:0 0 0 2px #fb923c,0 4px 10px rgba(0,0,0,.35);}
+  .block.bad{box-shadow:0 0 0 2px #f43f5e,0 4px 10px rgba(0,0,0,.35);}
+  .block .t{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.1;}
+  .block .rm{font-size:12px;font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+  .block .nm{font-size:10px;opacity:.85;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;padding-top:10px;border-top:1px solid var(--tlLine);}
+  .legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:#cdd9d5;}
+  .swatch{width:10px;height:10px;border-radius:2px;}
+  .trow{display:flex;gap:12px;align-items:center;padding:12px 14px;flex-wrap:wrap;}
+  .trow + .trow{border-top:1px solid var(--line);}
+  .grouphdr{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#f1ede3;font-family:'Sora',sans-serif;font-weight:600;font-size:14px;border-top:1px solid var(--line);}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .seg button{border:none;background:#fff;color:var(--inkSoft);padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;}
+  .seg button.on{background:var(--teal);color:#fff;}
+  .given{display:flex;align-items:center;gap:5px;}
+  .given input{width:74px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;background:#fffdf6;outline:none;}
+  .given input:focus{border-color:var(--teal);}
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;}
+  .stat{display:flex;flex-direction:column;}
+  .stat .v{font-size:20px;font-weight:700;font-family:'Sora',sans-serif;color:var(--teal);}
+  .stat .l{font-size:11.5px;color:var(--inkSoft);}
+  .addcard{display:flex;align-items:center;justify-content:center;gap:8px;min-height:120px;border:1.5px dashed var(--line);border-radius:12px;background:transparent;color:var(--inkSoft);font-size:14px;cursor:pointer;font-weight:500;}
+  .spin{animation:spin 1s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{font-size:13px;color:#b91c1c;margin:6px 0;}
+  .keybar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  details>summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--inkSoft);list-style:none;}
+  details>summary::-webkit-details-marker{display:none;}
+  details>summary:before{content:"⚙ ";}
+  .sticky{position:sticky;bottom:0;background:linear-gradient(transparent,var(--paper) 28%);padding:14px 0 4px;display:flex;gap:10px;flex-wrap:wrap;z-index:5;}
+  /* printable document */
+  #printDoc{display:none;}
+  .pd-wrap{font-family:'IBM Plex Sans',sans-serif;color:#1a2e2a;}
+  .pd-h1{font-family:'Sora',sans-serif;font-size:22px;margin:0 0 2px;}
+  .pd-meta{color:#4a5d58;font-size:13px;margin-bottom:14px;}
+  table.pd{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.pd th,table.pd td{border:1px solid #cfc8b8;padding:6px 8px;text-align:left;vertical-align:top;}
+  table.pd th{background:#f4f1ea;font-family:'Sora',sans-serif;}
+  .pd-foot{margin-top:12px;color:#4a5d58;font-size:11px;}
+  @media print{
+    .noprint{display:none!important;}
+    #app{display:none!important;}
+    #printDoc{display:block!important;}
+    body{background:#fff;padding:0;}
+  }
+</style>
+</head>
+<body>
+<div id="app" class="wrap">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:8px;">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;">🩺</span><h1>Clinical Med Pass Scheduler</h1>
+      </div>
+      <p class="sub">For each student, enter the room, snap a photo of the meds, and read them. Build the schedule, then save it as a document.</p>
+    </div>
+    <div style="height:3px;width:70px;background:var(--gold);border-radius:3px;"></div>
+  </div>
+
+  <!-- SETUP (collapsible) -->
+  <details class="panel noprint">
+    <summary>Setup — API key &amp; windows</summary>
+    <div style="margin-top:12px;">
+      <div class="label" style="margin-bottom:6px;">Anthropic API key &nbsp;·&nbsp; saved only in this browser, on this device</div>
+      <div class="keybar">
+        <input id="apiKey" class="inp mono" type="password" placeholder="sk-ant-..." style="flex:1;min-width:200px;" />
+        <select id="model" class="inp" style="cursor:pointer;">
+          <option value="claude-sonnet-4-6">Sonnet 4.6 — recommended</option>
+          <option value="claude-haiku-4-5-20251001">Haiku 4.5 — cheaper / faster</option>
+          <option value="claude-opus-4-8">Opus 4.8 — most accurate</option>
+        </select>
+      </div>
+      <div class="label" style="margin:8px 0 14px;">Get a key at console.anthropic.com → API Keys. Photos go straight to Anthropic and are not stored. Crop out patient name / MRN / DOB before uploading.</div>
+      <div class="row" style="gap:18px;">
+        <label class="stat"><span class="label">Window per patient</span>
+          <span class="row" style="gap:5px;"><input id="slot" class="inp mono" type="number" min="5" step="5" value="15" style="width:70px;"><span class="label">min</span></span></label>
+        <label class="stat"><span class="label">Standard window (±)</span>
+          <span class="row" style="gap:5px;"><input id="stdWin" class="inp mono" type="number" min="5" step="5" value="60" style="width:70px;"><span class="label">min</span></span></label>
+        <label class="stat"><span class="label">IV / time-critical (±)</span>
+          <span class="row" style="gap:5px;"><input id="critWin" class="inp mono" type="number" min="5" step="5" value="30" style="width:70px;"><span class="label">min</span></span></label>
+        <label class="stat"><span class="label">Clinical hours (ignore doses outside)</span>
+          <span class="row" style="gap:5px;"><input id="dayStart" class="inp mono" type="text" value="0700" style="width:64px;"><span class="label">to</span><input id="dayEnd" class="inp mono" type="text" value="1500" style="width:64px;"></span></label>
+      </div>
+    </div>
+  </details>
+
+  <div class="panel noprint row" style="justify-content:space-between;">
+    <label class="row" style="gap:8px;"><span class="label" style="font-size:13px;">Clinical date</span>
+      <input id="clinDate" class="inp" type="text" style="width:160px;"></label>
+  </div>
+
+  <div id="roster"></div>
+
+  <div class="sticky noprint">
+    <button id="addStudent" class="btn btn-secondary">＋ Add student <span id="studentCount"></span></button>
+    <button id="build" class="btn btn-primary" style="flex:1;min-width:200px;">🗓 Build supervision schedule</button>
+    <button id="assignSheet" class="btn btn-secondary" title="Save the student / RN / tech assignment sheet">👥 Assignment sheet</button>
+    <button id="clearDay" class="btn btn-ghost bordered" title="Start a new clinical day">🧹 Clear day</button>
+  </div>
+
+  <div id="output"></div>
+  <div class="label" style="text-align:center;margin-top:24px;opacity:.55;">Med Pass Scheduler · build 2026-06-11b</div>
+</div>
+
+<div id="printDoc"></div>
+
+<script>
+const COLORS=[{base:"#0d9488",bright:"#2dd4bf"},{base:"#c2700a",bright:"#f59e0b"},{base:"#4338ca",bright:"#818cf8"},{base:"#be123c",bright:"#fb7185"}];
+
+function h(tag,attrs,...kids){
+  const el=document.createElement(tag);
+  if(attrs)for(const k in attrs){const v=attrs[k];
+    if(k==="style"&&typeof v==="object")Object.assign(el.style,v);
+    else if(k==="class")el.className=v;
+    else if(k.startsWith("on")&&typeof v==="function")el.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==="html")el.innerHTML=v;
+    else if(v!==null&&v!==undefined&&v!==false)el.setAttribute(k,v);}
+  for(const kid of kids.flat()){if(kid===null||kid===undefined||kid===false)continue;
+    el.appendChild(typeof kid==="object"?kid:document.createTextNode(String(kid)));}
+  return el;
+}
+function parseTime(str){if(str==null)return null;const d=String(str).replace(/[^0-9]/g,"");if(!d.length)return null;
+  let hh,mm;if(d.length<=2){hh=+d;mm=0;}else if(d.length===3){hh=+d.slice(0,1);mm=+d.slice(1);}else{hh=+d.slice(0,2);mm=+d.slice(2,4);}
+  if(isNaN(hh)||isNaN(mm)||hh>23||mm>59)return null;return hh*60+mm;}
+function fmt(min){if(min==null)return"--:--";const hh=Math.floor((((min%1440)+1440)%1440)/60),mm=Math.round(((min%60)+60)%60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+let idc=1;const nid=()=>"id"+(idc++);
+const newPass=()=>({id:nid(),targetTime:"",timeCritical:false});
+const newPatient=()=>({id:nid(),room:"",rn:"",pct:"",photos:[],meds:[],passes:[newPass()],analyzing:false,error:""});
+
+const state={
+  students:[{id:nid(),name:"",patients:[newPatient()]}],
+  settings:{slotMinutes:15,standardWindow:60,criticalWindow:30,dayStart:420,dayEnd:900},
+  schedule:null,
+  apiKey:localStorage.getItem("mps_key")||"",
+  model:localStorage.getItem("mps_model")||"claude-sonnet-4-6",
+  view:localStorage.getItem("mps_view")||"time",
+};
+
+function buildSchedule(students,settings){
+  const slot=settings.slotMinutes;const passes=[];
+  students.forEach((s,si)=>{s.patients.forEach(p=>{
+    const passList=(p.passes||[]).map(pass=>({pass,t:parseTime(pass.targetTime)})).filter(x=>x.t!==null);
+    if(!passList.length)return;
+    const medsByPass=passList.map(()=>[]);
+    (p.meds||[]).forEach(m=>{const mts=(m.times||[]).map(parseTime).filter(v=>v!==null);
+      if(!mts.length){medsByPass[0].push(m);return;}
+      const used={};
+      mts.forEach(mt=>{let bi=0,bd=Infinity;passList.forEach((x,xi)=>{const dd=Math.abs(mt-x.t);if(dd<bd){bd=dd;bi=xi;}});
+        if(!used[bi]){used[bi]=1;medsByPass[bi].push(m);}});});
+    passList.forEach((x,xi)=>passes.push({studentId:s.id,studentName:s.name||("Student "+(si+1)),colorIndex:si,patientId:p.id,
+      room:p.room||"?",targetMin:x.t,timeCritical:!!x.pass.timeCritical,action:(x.pass.action==="stop"?"stop":"give"),
+      window:x.pass.timeCritical?settings.criticalWindow:settings.standardWindow,meds:medsByPass[xi]}));
+  });});
+  passes.sort((a,b)=>{if(a.timeCritical!==b.timeCritical)return a.timeCritical?-1:1;if(a.window!==b.window)return a.window-b.window;return a.targetMin-b.targetMin;});
+  const assigned=[];const overlaps=(s,e)=>assigned.some(x=>s<x.end&&x.start<e);const result=[];
+  for(const p of passes){const lo=p.targetMin-p.window,hi=p.targetMin+p.window-slot;let best=null,bestDist=Infinity;
+    for(let st=lo;st<=hi;st+=5){if(overlaps(st,st+slot))continue;const dist=Math.abs(st+slot/2-p.targetMin);if(dist<bestDist){bestDist=dist;best=st;}}
+    if(best===null){for(let d=5;d<=360&&best===null;d+=5){for(const cand of[p.targetMin-d,p.targetMin+d]){const st=Math.round(cand/5)*5;if(!overlaps(st,st+slot)){best=st;break;}}}}
+    if(best===null){result.push({...p,start:null,end:null,unscheduled:true});continue;}
+    assigned.push({start:best,end:best+slot});result.push({...p,start:best,end:best+slot,unscheduled:false});}
+  return result;
+}
+
+async function readMeds(images){
+  const content=images.map(img=>({type:"image",source:{type:"base64",media_type:img.mediaType,data:img.base64}}));
+  content.push({type:"text",text:
+    "These are photo(s) of a medication administration record (MAR) for ONE patient in a nursing clinical. "+
+    "Extract ONLY scheduled medications that have a specific clock administration time. "+
+    "OMIT PRN / as-needed medications, and omit any line that does not have a clear scheduled time. "+
+    "For each medication return: name, dose (if shown), route exactly as written (PO, IV, IVPB, IVP, IM, SubQ, etc.), and its scheduled time(s) in 24-hour HHMM format. "+
+    "Every returned medication MUST have at least one scheduled time. NEVER output a time that has no medication attached to it. "+
+    "Set timeCritical=true for any IV push (IVP), IV piggyback (IVPB), IV antibiotic, insulin, or anticoagulant (e.g. heparin, enoxaparin/Lovenox), and for anything marked time-critical/STAT/NOW; otherwise false. "+
+    "If a medication or IV infusion has a scheduled time to be STOPPED, discontinued, taken down, or turned off (e.g. marked D/C, discontinue, stop, off at, or an infusion end time), return that as a SEPARATE entry with action set to \"stop\" and that stop time in times. Normal administrations use action \"give\". "+
+    "Do NOT extract or return any patient name, MRN, date of birth, or other identifier. "+
+    'Respond with ONLY valid JSON, no markdown and no preamble, exactly: {"meds":[{"name":"","dose":"","route":"","times":["0900"],"timeCritical":false,"action":"give"}]}'});
+  const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+    headers:{"content-type":"application/json","x-api-key":state.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:state.model,max_tokens:2000,messages:[{role:"user",content}]})});
+  if(!resp.ok){let msg="API error "+resp.status;try{const j=await resp.json();if(j.error&&j.error.message)msg=j.error.message;}catch(e){}
+    if(resp.status===401||resp.status===403)msg="Check your API key — "+msg;throw new Error(msg);}
+  const data=await resp.json();
+  const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+  const cleaned=text.replace(/```json/g,"").replace(/```/g,"").trim();
+  const a=cleaned.indexOf("{"),z=cleaned.lastIndexOf("}");
+  const parsed=JSON.parse(a>=0&&z>=0?cleaned.slice(a,z+1):cleaned);
+  return Array.isArray(parsed.meds)?parsed.meds:[];
+}
+function fileToImage(file){return new Promise((res,rej)=>{const r=new FileReader();
+  r.onload=()=>res({dataUrl:r.result,base64:String(r.result).split(",")[1],mediaType:file.type||"image/jpeg"});
+  r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});}
+
+function findP(sid,pid){const s=state.students.find(x=>x.id===sid);return[s,s&&s.patients.find(p=>p.id===pid)];}
+function addStudent(){if(state.students.length<4){state.students.push({id:nid(),name:"",patients:[newPatient()]});renderRoster();}}
+function removeStudent(sid){state.students=state.students.filter(s=>s.id!==sid);renderRoster();}
+function addPatient(sid){const s=state.students.find(x=>x.id===sid);if(s&&s.patients.length<5){s.patients.push(newPatient());renderRoster();}}
+function removePatient(sid,pid){const s=state.students.find(x=>x.id===sid);if(s){s.patients=s.patients.filter(p=>p.id!==pid);renderRoster();}}
+function addPass(sid,pid){const[,p]=findP(sid,pid);if(p&&p.passes.length<4){p.passes.push(newPass());renderRoster();}}
+function removePass(sid,pid,passId){const[,p]=findP(sid,pid);if(p){p.passes=p.passes.filter(pp=>pp.id!==passId);renderRoster();}}
+
+async function handleUpload(sid,pid,fileList){
+  const files=Array.from(fileList).filter(f=>f.type.startsWith("image/"));if(!files.length)return;
+  const imgs=await Promise.all(files.map(fileToImage));const[,p]=findP(sid,pid);p.photos=p.photos.concat(imgs);renderRoster();}
+async function analyze(sid,pid){
+  const[,p]=findP(sid,pid);
+  if(!p.photos.length){p.error="Add at least one photo first.";renderRoster();return;}
+  if(!state.apiKey){p.error="Open Setup above and enter your Anthropic API key first.";renderRoster();return;}
+  p.analyzing=true;p.error="";renderRoster();
+  try{let meds=await readMeds(p.photos);
+    // belt-and-suspenders: force IV-piggyback/IV-push/insulin/anticoagulants to time-critical even if the reader missed it
+    meds.forEach(m=>{const r=(m.route||"").toUpperCase();const nm=(m.name||"").toUpperCase();
+      if(/IVPB|PIGGYBACK|\bIVP\b|IV PUSH/.test(r))m.timeCritical=true;
+      if(/INSULIN|HEPARIN|ENOXAPARIN|LOVENOX/.test(nm))m.timeCritical=true;});
+    // drop anything without a real scheduled time
+    meds=meds.filter(m=>(m.times||[]).some(t=>parseTime(t)!==null));
+    p.meds=meds;
+    // build pass times only from doses within the clinical-hours window
+    const ds=state.settings.dayStart,de=state.settings.dayEnd;const times=[];
+    meds.forEach(m=>(m.times||[]).forEach(t=>{const mm=parseTime(t);if(mm!==null&&mm>=ds&&mm<=de)times.push({mm,crit:!!m.timeCritical,action:(m.action==="stop"?"stop":"give")});}));
+    const cluster=arr=>{arr.sort((a,b)=>a.mm-b.mm);const cl=[];arr.forEach(({mm,crit})=>{const last=cl[cl.length-1];if(last&&mm-last.max<=75){last.max=mm;last.crit=last.crit||crit;}else cl.push({min:mm,max:mm,crit});});return cl;};
+    const giveCl=cluster(times.filter(t=>t.action!=="stop")).map(c=>({...c,action:"give"}));
+    const stopCl=cluster(times.filter(t=>t.action==="stop")).map(c=>({...c,action:"stop"}));
+    const clusters=giveCl.concat(stopCl);
+    if(clusters.length)p.passes=clusters.map(c=>({id:nid(),targetTime:fmt(c.min),timeCritical:c.crit,action:c.action}));
+    p.analyzing=false;
+  }catch(e){p.analyzing=false;p.error=(e&&e.message)?e.message:"Could not read that photo. Try a clearer crop, or enter the time manually.";}
+  renderRoster();
+}
+function generate(){
+  const rows=buildSchedule(state.students,state.settings);const placed=rows.filter(r=>!r.unscheduled);
+  let mn=0,mx=0;if(placed.length){mn=Math.min(...placed.map(r=>r.start));mx=Math.max(...placed.map(r=>r.end));}
+  state.schedule={rows,bounds:{min:Math.floor((mn-30)/5)*5,max:Math.ceil((mx+30)/5)*5}};
+  renderOutput();persist();document.getElementById("output").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+let trackEl=null,dragState=null;
+function startDrag(e,idx){e.preventDefault();const b=state.schedule.bounds,range=Math.max(b.max-b.min,1);const w=trackEl?trackEl.clientWidth:1;
+  dragState={idx,startX:e.clientX,origStart:state.schedule.rows[idx].start,pxPerMin:w/range,b,slot:state.settings.slotMinutes,raf:0};
+  document.addEventListener("pointermove",onDragMove);document.addEventListener("pointerup",onDragUp);}
+function onDragMove(e){if(!dragState)return;const d=dragState;let ns=Math.round((d.origStart+(e.clientX-d.startX)/d.pxPerMin)/5)*5;
+  ns=clamp(ns,d.b.min,d.b.max-d.slot);state.schedule.rows[d.idx].start=ns;state.schedule.rows[d.idx].end=ns+d.slot;
+  if(!d.raf)d.raf=requestAnimationFrame(()=>{d.raf=0;renderOutput();});}
+function onDragUp(){document.removeEventListener("pointermove",onDragMove);document.removeEventListener("pointerup",onDragUp);dragState=null;renderOutput();persist();}
+
+function renderRoster(){
+  const root=document.getElementById("roster");root.innerHTML="";
+  state.students.forEach((s,si)=>{const col=COLORS[si];
+    const card=h("div",{class:"panel student-card",style:{borderLeftColor:col.base}});
+    card.appendChild(h("div",{class:"row noprint",style:{marginBottom:"14px"}},
+      h("span",{class:"swatch",style:{width:"14px",height:"14px",borderRadius:"50%",background:col.base}}),
+      (()=>{const i=h("input",{class:"inp",style:{fontFamily:"'Sora',sans-serif",fontWeight:"600",fontSize:"16px",flex:"1",minWidth:"160px"},value:s.name,placeholder:"Student "+(si+1)+" name"});i.addEventListener("input",e=>s.name=e.target.value);return i;})(),
+      state.students.length>1?h("button",{class:"btn btn-ghost",title:"Remove student",onclick:()=>removeStudent(s.id)},"🗑"):null));
+    const grid=h("div",{class:"pgrid"});
+    s.patients.forEach(p=>grid.appendChild(patientCard(s,p,col)));
+    if(s.patients.length<5)grid.appendChild(h("button",{class:"btn addcard noprint",onclick:()=>addPatient(s.id)},"🛏 Add patient"));
+    card.appendChild(grid);root.appendChild(card);});
+  document.getElementById("studentCount").textContent="("+state.students.length+"/4)";
+  document.getElementById("addStudent").style.display=state.students.length<4?"":"none";
+  persist();
+}
+function patientCard(s,p,col){
+  const card=h("div",{class:"patient-card"});
+  const roomInput=h("input",{class:"inp mono",style:{width:"80px"},value:p.room,placeholder:"37"});
+  roomInput.addEventListener("input",e=>p.room=e.target.value);
+  card.appendChild(h("div",{class:"row",style:{marginBottom:"10px"}},
+    h("span",{style:{color:col.base}},"🛏"),h("span",{class:"label"},"Room"),roomInput,
+    s.patients.length>1?h("button",{class:"btn btn-ghost noprint",style:{marginLeft:"auto"},title:"Remove patient",onclick:()=>removePatient(s.id,p.id)},"✕"):null));
+  const rnIn=h("input",{class:"inp",style:{flex:"1",minWidth:"110px",fontSize:"15px"},value:p.rn||"",placeholder:"Primary RN"});
+  rnIn.addEventListener("input",e=>p.rn=e.target.value);
+  const pctIn=h("input",{class:"inp",style:{flex:"1",minWidth:"110px",fontSize:"15px"},value:p.pct||"",placeholder:"Patient care tech"});
+  pctIn.addEventListener("input",e=>p.pct=e.target.value);
+  card.appendChild(h("div",{class:"row noprint",style:{marginBottom:"10px",gap:"8px"}},
+    h("span",{class:"label"},"RN"),rnIn,h("span",{class:"label"},"PCT"),pctIn));
+  // thumbnails
+  if(p.photos.length){const thumbs=h("div",{class:"row noprint",style:{gap:"8px",marginBottom:"10px"}});
+    p.photos.forEach((img,i)=>thumbs.appendChild(h("div",{class:"photo"},h("img",{src:img.dataUrl,alt:""}),
+      h("button",{class:"x",onclick:()=>{p.photos.splice(i,1);renderRoster();}},"✕"))));
+    card.appendChild(thumbs);}
+  // photo button (opens camera or library on phone)
+  const fileInput=h("input",{type:"file",accept:"image/*",multiple:"",style:{display:"none"}});
+  fileInput.addEventListener("change",e=>{handleUpload(s.id,p.id,e.target.files);e.target.value="";});
+  card.appendChild(h("button",{class:"photobtn noprint",style:{borderColor:col.base,color:col.base},onclick:()=>fileInput.click()},"📷 Take or add med photo"));
+  card.appendChild(fileInput);
+  // analyze
+  const aBtn=h("button",{class:"btn btn-secondary noprint",style:{width:"100%",padding:"11px",fontSize:"15px",marginBottom:"10px"},onclick:()=>analyze(s.id,p.id)});
+  aBtn.disabled=p.analyzing;aBtn.innerHTML=p.analyzing?'<span class="spin">↻</span> Reading meds…':'✦ Read meds from photo';
+  card.appendChild(aBtn);
+  if(p.error)card.appendChild(h("div",{class:"err"},p.error));
+  if(p.meds&&p.meds.length){const medbox=h("div",{style:{marginBottom:"10px"}});
+    p.meds.forEach((m,i)=>medbox.appendChild(h("div",{class:"med"},
+      h("span",{style:{color:m.action==="stop"?"#9a3412":(m.timeCritical?"#be123c":"var(--inkSoft)")}},m.action==="stop"?"⏹":"💊"),
+      m.action==="stop"?h("span",{style:{fontWeight:"700",color:"#9a3412",fontSize:"11px"}},"STOP"):null,
+      h("span",{style:{fontWeight:"500"}},m.name||""),
+      m.dose?h("span",{style:{color:"var(--inkSoft)"}},m.dose):null,
+      m.route?h("span",{style:{color:col.base,fontWeight:"600"}},m.route):null,
+      h("span",{class:"mono",style:{marginLeft:"auto",color:"var(--inkSoft)"}},(m.times||[]).map(t=>fmt(parseTime(t))).join(", ")),
+      h("button",{class:"noprint",style:{background:"none",border:"none",cursor:"pointer",color:"#c0bcae",padding:"0"},onclick:()=>{p.meds.splice(i,1);renderRoster();}},"✕"))));
+    card.appendChild(medbox);}
+  card.appendChild(h("div",{class:"label",style:{fontWeight:"600",marginBottom:"6px"}},"▦ Med pass times"));
+  p.passes.forEach(pass=>{const tIn=h("input",{class:"inp mono",style:{width:"90px"},value:pass.targetTime,placeholder:"0900"});
+    tIn.addEventListener("input",e=>pass.targetTime=e.target.value);
+    const chk=h("input",{type:"checkbox",style:{width:"18px",height:"18px"}});chk.checked=pass.timeCritical;
+    const lbl=h("label",{class:"row noprint",style:{gap:"6px",fontSize:"14px",cursor:"pointer",color:pass.timeCritical?"#be123c":"var(--inkSoft)"}},chk," IV / time-critical");
+    chk.addEventListener("change",e=>{pass.timeCritical=e.target.checked;lbl.style.color=e.target.checked?"#be123c":"var(--inkSoft)";});
+    card.appendChild(h("div",{class:"row",style:{marginBottom:"8px"}},
+      h("div",{class:"row",style:{gap:"6px"}},h("span",{style:{color:pass.action==="stop"?"#9a3412":"var(--inkSoft)"}},pass.action==="stop"?"⏹":"🕐"),h("span",{class:"label",style:pass.action==="stop"?{color:"#9a3412",fontWeight:"600"}:{}},pass.action==="stop"?"Stop":"Due"),tIn),lbl,
+      p.passes.length>1?h("button",{class:"btn btn-ghost noprint",style:{marginLeft:"auto",padding:"4px"},title:"Remove pass",onclick:()=>removePass(s.id,p.id,pass.id)},"✕"):null));});
+  if(p.passes.length<4)card.appendChild(h("button",{class:"noprint",style:{display:"inline-flex",alignItems:"center",gap:"5px",background:"none",border:"none",color:col.base,fontSize:"14px",fontWeight:"600",cursor:"pointer",padding:"2px 0"},onclick:()=>addPass(s.id,p.id)},"＋ Add another pass time"));
+  return card;
+}
+
+function buildView(){
+  const slot=state.settings.slotMinutes,rows=state.schedule.rows;
+  const scheduled=rows.map((r,idx)=>({r,idx})).filter(x=>!x.r.unscheduled);
+  const view=scheduled.map(({r,idx})=>{const center=r.start+slot/2;
+    const windowConflict=r.start<r.targetMin-r.window||r.end>r.targetMin+r.window;
+    const overlap=scheduled.some(o=>o.idx!==idx&&r.start<o.r.end&&o.r.start<r.end);
+    return{...r,idx,deviation:Math.round(center-r.targetMin),windowConflict,overlap};});
+  return{view,scheduled,unsched:rows.filter(r=>r.unscheduled)};
+}
+
+function renderOutput(){
+  const out=document.getElementById("output");out.innerHTML="";
+  if(!state.schedule)return;
+  const slot=state.settings.slotMinutes,b=state.schedule.bounds,range=Math.max(b.max-b.min,1);
+  const {view,scheduled,unsched}=buildView();
+  if(!scheduled.length){out.appendChild(h("div",{class:"panel",style:{color:"var(--inkSoft)"}},"No times to schedule yet — add a pass time (or read a photo) for at least one patient."));
+    document.getElementById("printDoc").innerHTML="";return;}
+  const minStart=Math.min(...scheduled.map(x=>x.r.start)),maxEnd=Math.max(...scheduled.map(x=>x.r.end));
+
+  out.appendChild(h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"4px",flexWrap:"wrap",gap:"8px"}},
+    h("h2",{},"Supervision schedule"),
+    h("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
+      (()=>{const seg=h("div",{class:"seg noprint"});
+        const mk=(val,lbl)=>{const btn=h("button",{class:state.view===val?"on":"",onclick:()=>{state.view=val;localStorage.setItem("mps_view",val);persist();renderOutput();}},lbl);return btn;};
+        seg.appendChild(mk("time","By time"));seg.appendChild(mk("student","By student"));return seg;})(),
+      h("button",{class:"btn btn-secondary noprint",style:{padding:"9px 14px",fontSize:"14px",borderColor:"var(--gold)",color:"var(--gold)"},onclick:reflow},"⏱ Reflow from now"),
+      h("button",{class:"btn btn-ghost bordered noprint",onclick:generate},"↺ Reset"),
+      h("button",{class:"btn btn-secondary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:shareSchedule},"📤 Share"),
+      h("button",{class:"btn btn-primary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:saveDocument},"📄 Save as document"))));
+  out.appendChild(h("p",{class:"label noprint",style:{margin:"0 0 12px"}},
+    "⠿ Drag to fine-tune. ⏱ If a pass runs over, tap “Reflow from now” to re-stack the rest of the day from the current time."+
+    (state.schedule.lastReflow!=null?(" · Last re-anchored "+fmt(state.schedule.lastReflow)):"")));
+
+  const tl=h("div",{class:"timeline"});trackEl=h("div",{class:"track"});
+  const first=Math.ceil(b.min/60)*60;
+  for(let t=first;t<=b.max;t+=60)trackEl.appendChild(h("div",{class:"tick",style:{left:((t-b.min)/range*100)+"%"}},h("span",{},fmt(t))));
+  view.forEach(r=>{const c=COLORS[r.colorIndex];
+    const block=h("div",{class:"block"+(r.overlap?" bad":(r.windowConflict?" warn":"")),
+      style:{left:((r.start-b.min)/range*100)+"%",width:((r.end-r.start)/range*100)+"%",background:c.bright},
+      title:r.studentName+" · Rm "+r.room+" · "+fmt(r.start)+"–"+fmt(r.end)},
+      h("div",{class:"t"},"⠿ "+fmt(r.start)),h("div",{class:"rm"},(r.action==="stop"?"⏹ ":"")+"Rm "+r.room),h("div",{class:"nm"},r.studentName+(r.action==="stop"?" · STOP IV":(r.timeCritical?" · IV":""))));
+    block.addEventListener("pointerdown",e=>startDrag(e,r.idx));trackEl.appendChild(block);});
+  tl.appendChild(trackEl);
+  const legend=h("div",{class:"legend"});
+  state.students.forEach((s,si)=>legend.appendChild(h("span",{},h("span",{class:"swatch",style:{background:COLORS[si].bright}}),s.name||("Student "+(si+1)))));
+  tl.appendChild(legend);out.appendChild(tl);
+
+  const table=h("div",{class:"panel",style:{padding:"0",overflow:"hidden"}});
+  const rowEl=(r,bg)=>{const c=COLORS[r.colorIndex];
+    const badges=h("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap",justifyContent:"flex-end"}});
+    if(r.timeCritical)badges.appendChild(h("span",{class:"badge",style:{color:"#be123c",background:"#fde7ec"}},"💊 time-critical"));
+    if(r.deviation!==0)badges.appendChild(h("span",{class:"badge",style:{color:"var(--inkSoft)",background:"#eef2f0"}},(r.deviation>0?"+":"")+r.deviation+"m"));
+    if(r.windowConflict)badges.appendChild(h("span",{class:"badge",style:{color:"#9a3412",background:"#fdeede"}},"⚠ outside window"));
+    if(r.overlap)badges.appendChild(h("span",{class:"badge",style:{color:"#9f1239",background:"#fde7ec"}},"⚠ overlaps"));
+    const rowRef=state.schedule.rows[r.idx];
+    const ng=!!rowRef.notGiven;
+    const done=!ng&&(rowRef.given||"").trim()!=="";
+    const givenIn=h("input",{value:rowRef.given||"",placeholder:"––:––"});
+    givenIn.disabled=ng;
+    if(ng)givenIn.style.opacity="0.4";
+    givenIn.addEventListener("input",e=>rowRef.given=e.target.value);
+    givenIn.addEventListener("change",()=>{persist();renderOutput();});   // save + recolor when the field loses focus
+    const ngBtn=h("button",{class:"btn",style:{padding:"6px 10px",fontSize:"12px",borderRadius:"7px",fontWeight:"600",
+      border:"1px solid "+(ng?"#be123c":"var(--line)"),background:ng?"#fde7ec":"#fff",color:ng?"#be123c":"var(--inkSoft)"},
+      onclick:()=>{rowRef.notGiven=!rowRef.notGiven;persist();renderOutput();}},ng?"✕ Not given":"Not given");
+    return h("div",{class:"trow",style:{background:ng?"#fdf2f4":(done?"#fef9c3":(bg?"#fbfaf6":"#fff"))}},
+      h("div",{class:"mono",style:{fontSize:"15px",minWidth:"96px"}},fmt(r.start)+"–"+fmt(r.end)),
+      h("span",{class:"swatch",style:{width:"10px",height:"10px",borderRadius:"50%",background:c.base}}),
+      h("div",{style:{minWidth:"120px"}},h("div",{style:{fontWeight:"600"}},r.studentName),h("div",{style:{fontSize:"12px",color:r.action==="stop"?"#9a3412":"var(--inkSoft)"}},"Room "+r.room+" · "+actWord(r)+" "+fmt(r.targetMin))),
+      h("div",{style:{flex:"1",fontSize:"12px",color:"var(--inkSoft)",lineHeight:"1.4",minWidth:"120px"}},(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.route?" ("+m.route+")":"")).join(", "):"—"),
+      h("div",{class:"given noprint"},h("span",{class:"label"},"Given"),givenIn,ngBtn),
+      badges);
+  };
+  let stripe=0;
+  groupView(view).forEach(g=>{
+    if(g.label){const c=COLORS[g.colorIndex];
+      table.appendChild(h("div",{class:"grouphdr"},h("span",{class:"swatch",style:{width:"11px",height:"11px",borderRadius:"50%",background:c.base}}),g.label));stripe=0;}
+    g.rows.forEach(r=>table.appendChild(rowEl(r,stripe++%2)));
+  });
+  out.appendChild(table);
+
+  const flagged=view.filter(r=>r.windowConflict||r.overlap).length;
+  out.appendChild(h("div",{style:{display:"flex",gap:"18px",flexWrap:"wrap",marginTop:"14px"}},
+    stat("Med passes",scheduled.length),stat("Span",fmt(minStart)+"–"+fmt(maxEnd)),
+    stat("At bedside",(scheduled.length*slot)+" min"),flagged?stat("Flagged",flagged,true):null));
+  const repStudents=state.students.filter(s=>view.some(r=>r.studentId===s.id));
+  if(repStudents.length){
+    const box=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"8px"}});
+    repStudents.forEach(s=>{const si=state.students.indexOf(s);
+      box.appendChild(h("button",{class:"btn btn-secondary",style:{padding:"9px 14px",fontSize:"14px"},onclick:()=>printStudentReport(s.id)},"📄 "+(s.name||("Student "+(si+1)))));});
+    out.appendChild(h("div",{class:"noprint",style:{marginTop:"18px"}},
+      h("div",{class:"label",style:{fontWeight:"600",marginBottom:"4px"}},"📄 Per-student reports — due vs. actual"),
+      h("div",{class:"label",style:{marginBottom:"8px"}},"Enter each Given time above, then tap a student to save their individual report (one PDF per student)."),
+      box));
+  }
+  if(unsched.length)out.appendChild(h("div",{style:{marginTop:"14px",padding:"14px",borderRadius:"10px",background:"#fdeede",color:"#7c2d12",fontSize:"13px"}},
+    h("strong",{},"Could not place: "),unsched.map(r=>r.studentName+" (Rm "+r.room+", "+fmt(r.targetMin)+")").join(", ")+". Widen a window or stagger the times."));
+
+  renderPrintDoc(view,scheduled.length,minStart,maxEnd,unsched);
+}
+function groupView(view){
+  if(state.view==="student"){
+    const groups=[];
+    state.students.forEach((s,si)=>{const rs=view.filter(r=>r.studentId===s.id).sort((a,b)=>a.start-b.start);
+      if(rs.length)groups.push({label:s.name||("Student "+(si+1)),colorIndex:si,rows:rs});});
+    return groups;
+  }
+  return [{label:null,rows:view.slice().sort((a,b)=>a.start-b.start)}];
+}
+function stat(label,value,warn){return h("div",{class:"stat"},h("span",{class:"v",style:warn?{color:"#b45309"}:{}},String(value)),h("span",{class:"l"},label));}
+
+function renderPrintDoc(view,count,minStart,maxEnd,unsched){
+  const date=document.getElementById("clinDate").value||"";
+  const cell=r=>{
+    const row=state.schedule.rows[r.idx];const ng=!!row.notGiven;
+    const notes=[];if(ng)notes.push("NOT GIVEN");if(r.action==="stop")notes.push("STOP / discontinue");if(r.timeCritical)notes.push("time-critical");if(r.deviation!==0)notes.push((r.deviation>0?"+":"")+r.deviation+" min vs due");
+    if(r.windowConflict)notes.push("OUTSIDE WINDOW");if(r.overlap)notes.push("OVERLAP");
+    const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":"")).join("; "):"—";
+    const given=ng?"not given":((row.given||"").trim());
+    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.studentName)+"</td><td>"+esc(r.room)+"</td><td class='mono'>"+fmt(r.targetMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(given)+"</td><td>"+esc(meds)+"</td><td>"+esc(notes.join(", "))+"</td></tr>";
+  };
+  let rows="";
+  groupView(view).forEach(g=>{
+    if(g.label)rows+="<tr><td colspan='7' style='background:#f1ede3;font-weight:600;'>"+esc(g.label)+"</td></tr>";
+    g.rows.forEach(r=>{rows+=cell(r);});
+  });
+  const uns=unsched.length?"<p style='color:#7c2d12;font-size:12px;margin-top:10px;'><strong>Could not place:</strong> "+esc(unsched.map(r=>r.studentName+" (Rm "+r.room+", "+fmt(r.targetMin)+")").join(", "))+"</p>":"";
+  document.getElementById("printDoc").innerHTML=
+    "<div class='pd-wrap'><div class='pd-h1'>Clinical Med Pass Supervision Schedule</div>"+
+    "<div class='pd-meta'>"+(date?("Date: "+esc(date)+" · "):"")+count+" med passes · supervision span "+fmt(minStart)+"–"+fmt(maxEnd)+"</div>"+
+    "<table class='pd'><thead><tr><th>Time</th><th>Student</th><th>Room</th><th>Due</th><th>Given</th><th>Medications</th><th>Notes</th></tr></thead><tbody>"+rows+"</tbody></table>"+uns+
+    "<div class='pd-foot'>Generated "+new Date().toLocaleString()+" · Verify all times against the MAR and facility med-administration policy.</div></div>";
+}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function spx(m){return (m&&m.action==="stop")?"STOP ":"";}
+function actWord(r){return (r&&r.action==="stop")?"stop":"due";}
+function buildShareText(){
+  const {view}=buildView();
+  const date=document.getElementById("clinDate").value||"";
+  let out="Med Pass Supervision Schedule"+(date?" — "+date:"")+"\n";
+  groupView(view).forEach(g=>{
+    if(g.label)out+="\n"+g.label.toUpperCase()+"\n";
+    g.rows.forEach(r=>{
+      const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.route?" ("+m.route+")":"")).join(", "):"—";
+      const crit=r.timeCritical?" [time-critical]":"";
+      const who=g.label?"":" · "+r.studentName;
+      out+=(g.label?"  ":"")+fmt(r.start)+"–"+fmt(r.end)+"  Rm "+r.room+who+" · "+meds+crit+"\n";
+    });
+  });
+  return out.trim();
+}
+async function shareSchedule(){
+  if(!state.schedule)return;
+  const txt=buildShareText();
+  try{
+    if(navigator.share){await navigator.share({title:"Med Pass Schedule",text:txt});}
+    else{await navigator.clipboard.writeText(txt);alert("Schedule copied to clipboard — paste it into a message or email to your students.");}
+  }catch(e){/* user dismissed the share sheet — nothing to do */}
+}
+function saveDocument(){
+  if(!state.schedule)return;
+  const {view,scheduled,unsched}=buildView();
+  if(scheduled.length){
+    const minStart=Math.min(...scheduled.map(x=>x.r.start)),maxEnd=Math.max(...scheduled.map(x=>x.r.end));
+    renderPrintDoc(view,scheduled.length,minStart,maxEnd,unsched);
+  }
+  window.print();
+}
+function studentReportDoc(sid){
+  const s=state.students.find(x=>x.id===sid);const si=state.students.indexOf(s);
+  const {view}=buildView();
+  const rows=view.filter(r=>r.studentId===sid).sort((a,b)=>a.start-b.start);
+  const date=document.getElementById("clinDate").value||"";
+  let given=0,within=0,notgiven=0;const total=rows.length;
+  const trs=rows.map(r=>{
+    const dueMin=r.targetMin;const row=state.schedule.rows[r.idx];const ng=!!row.notGiven;
+    const gv=(row.given||"").trim();
+    const gm=parseTime(gv);
+    let varTxt="—",givenCell="",note=(r.action==="stop"?"STOP / discontinue":"")+(r.timeCritical?(r.action==="stop"?"; time-critical":"time-critical"):"");
+    if(ng){notgiven++;givenCell="not given";note=(note?note+"; ":"")+"NOT GIVEN";}
+    else{givenCell=(gm!==null?fmt(gm):(gv||""));
+      if(gm!==null){given++;const d=gm-dueMin;varTxt=(d>0?"+":"")+d+" min";
+        const ok=Math.abs(d)<=r.window;if(ok)within++;note=(note?note+"; ":"")+(ok?"within window":"OUTSIDE window");}}
+    const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":"")).join("; "):"—";
+    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.room)+"</td><td class='mono'>"+fmt(dueMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(givenCell)+"</td><td>"+esc(varTxt)+"</td><td>"+esc(meds)+"</td><td>"+esc(note)+"</td></tr>";
+  }).join("");
+  const summary=total?(given+" of "+total+" passes charted"+(notgiven?(" · "+notgiven+" not given"):"")+" · "+within+" of "+given+" given within the allowable window"):"No scheduled passes for this student.";
+  return "<div class='pd-wrap'><div class='pd-h1'>Med Pass Report — "+esc(s.name||("Student "+(si+1)))+"</div>"+
+    "<div class='pd-meta'>"+(date?("Date: "+esc(date)+" · "):"")+esc(summary)+"</div>"+
+    "<table class='pd'><thead><tr><th>Window</th><th>Room</th><th>Due</th><th>Given</th><th>Variance</th><th>Medications</th><th>Notes</th></tr></thead><tbody>"+trs+"</tbody></table>"+
+    "<div class='pd-foot'>Generated "+new Date().toLocaleString()+" · Times reflect supervised administration. Verify against the MAR and facility medication-administration policy.</div></div>";
+}
+function printStudentReport(sid){document.getElementById("printDoc").innerHTML=studentReportDoc(sid);window.print();}
+function assignmentDoc(){
+  const date=document.getElementById("clinDate").value||"";
+  let body="";
+  state.students.forEach((s,si)=>{
+    if(!s.patients.length)return;
+    body+="<tr><td colspan='5' style='background:#f1ede3;font-weight:600;'>"+esc(s.name||("Student "+(si+1)))+"</td></tr>";
+    s.patients.forEach(p=>{
+      const times=(p.passes||[]).map(pp=>{const t=parseTime(pp.targetTime);return t!==null?fmt(t):"";}).filter(Boolean).join(", ");
+      body+="<tr><td class='mono'>"+esc(p.room||"—")+"</td><td>"+esc(p.rn||"—")+"</td><td>"+esc(p.pct||"—")+"</td><td class='mono'>"+esc(times||"—")+"</td><td>"+esc((p.meds||[]).map(m=>m.name).join("; ")||"—")+"</td></tr>";
+    });
+  });
+  return "<div class='pd-wrap'><div class='pd-h1'>Clinical Assignment Sheet</div>"+
+    "<div class='pd-meta'>"+(date?("Date: "+esc(date)):"")+"</div>"+
+    "<table class='pd'><thead><tr><th>Room</th><th>Primary RN</th><th>Patient Care Tech</th><th>Med times</th><th>Medications</th></tr></thead><tbody>"+body+"</tbody></table>"+
+    "<div class='pd-foot'>Generated "+new Date().toLocaleString()+"</div></div>";
+}
+function printAssignment(){document.getElementById("printDoc").innerHTML=assignmentDoc();window.print();}
+
+function reflow(){
+  if(!state.schedule)return;
+  const now=new Date();
+  const anchor=Math.round((now.getHours()*60+now.getMinutes())/5)*5;
+  const slot=state.settings.slotMinutes;
+  const sched=state.schedule.rows.filter(r=>!r.unscheduled).slice().sort((a,b)=>a.start-b.start);
+  let cursor=anchor;
+  sched.forEach(r=>{
+    if(r.end<=anchor)return;              // already finished by the clock — leave as a record
+    const ns=Math.max(r.start,cursor);     // never pull a pass earlier than planned (keeps real gaps)
+    r.start=ns;r.end=ns+slot;cursor=r.end; // push only as far as the running-over ripple requires
+  });
+  const placed=state.schedule.rows.filter(r=>!r.unscheduled);
+  if(placed.length){const mn=Math.min(...placed.map(r=>r.start)),mx=Math.max(...placed.map(r=>r.end));
+    state.schedule.bounds={min:Math.floor((mn-30)/5)*5,max:Math.ceil((mx+30)/5)*5};}
+  state.schedule.lastReflow=anchor;
+  renderOutput();persist();
+}
+
+function persist(){
+  try{
+    const slim={
+      students:state.students.map(s=>({id:s.id,name:s.name,patients:s.patients.map(p=>({id:p.id,room:p.room,rn:p.rn,pct:p.pct,meds:p.meds,passes:p.passes}))})),
+      settings:state.settings,view:state.view,
+      clinDate:(document.getElementById("clinDate")||{}).value||"",
+      schedule:state.schedule,
+    };
+    localStorage.setItem("mps_session",JSON.stringify(slim));
+  }catch(e){/* storage full or disabled — skip silently */}
+}
+function restore(){
+  let raw;try{raw=localStorage.getItem("mps_session");}catch(e){return;}
+  if(!raw)return;
+  let d;try{d=JSON.parse(raw);}catch(e){return;}
+  if(d.students&&d.students.length)
+    state.students=d.students.map(s=>({id:s.id||nid(),name:s.name||"",patients:(s.patients||[]).map(p=>({
+      id:p.id||nid(),room:p.room||"",rn:p.rn||"",pct:p.pct||"",photos:[],meds:p.meds||[],
+      passes:(p.passes&&p.passes.length)?p.passes:[newPass()],analyzing:false,error:""}))}));
+  if(d.settings)state.settings=Object.assign(state.settings,d.settings);
+  if(d.view)state.view=d.view;
+  if(d.schedule)state.schedule=d.schedule;
+  let maxId=0;const scan=id=>{const n=parseInt(String(id).replace(/\D/g,""),10);if(!isNaN(n)&&n>maxId)maxId=n;};
+  state.students.forEach(s=>{scan(s.id);s.patients.forEach(p=>{scan(p.id);(p.passes||[]).forEach(pp=>scan(pp.id));});});
+  idc=Math.max(idc,maxId+1);
+  if(d.clinDate)window.__clinDate=d.clinDate;
+}
+function clearDay(){
+  if(!confirm("Clear all students, patients, and the schedule to start a new clinical day? This can't be undone."))return;
+  try{localStorage.removeItem("mps_session");}catch(e){}
+  state.students=[{id:nid(),name:"",patients:[newPatient()]}];
+  state.schedule=null;
+  document.getElementById("output").innerHTML="";
+  document.getElementById("printDoc").innerHTML="";
+  document.getElementById("clinDate").value=new Date().toLocaleDateString();
+  renderRoster();
+}
+
+restore();
+
+const keyEl=document.getElementById("apiKey");keyEl.value=state.apiKey;
+keyEl.addEventListener("input",e=>{state.apiKey=e.target.value.trim();localStorage.setItem("mps_key",state.apiKey);});
+const modelEl=document.getElementById("model");modelEl.value=state.model;
+modelEl.addEventListener("change",e=>{state.model=e.target.value;localStorage.setItem("mps_model",state.model);});
+document.getElementById("slot").value=state.settings.slotMinutes;
+document.getElementById("stdWin").value=state.settings.standardWindow;
+document.getElementById("critWin").value=state.settings.criticalWindow;
+document.getElementById("slot").addEventListener("input",e=>state.settings.slotMinutes=Math.max(5,+e.target.value||15));
+document.getElementById("stdWin").addEventListener("input",e=>state.settings.standardWindow=Math.max(5,+e.target.value||60));
+document.getElementById("critWin").addEventListener("input",e=>state.settings.criticalWindow=Math.max(5,+e.target.value||30));
+document.getElementById("dayStart").value=fmt(state.settings.dayStart);
+document.getElementById("dayEnd").value=fmt(state.settings.dayEnd);
+document.getElementById("dayStart").addEventListener("input",e=>{const v=parseTime(e.target.value);if(v!==null)state.settings.dayStart=v;});
+document.getElementById("dayEnd").addEventListener("input",e=>{const v=parseTime(e.target.value);if(v!==null)state.settings.dayEnd=v;});
+document.getElementById("addStudent").addEventListener("click",addStudent);
+document.getElementById("build").addEventListener("click",generate);
+document.getElementById("assignSheet").addEventListener("click",printAssignment);
+document.getElementById("clearDay").addEventListener("click",clearDay);
+document.getElementById("clinDate").value=window.__clinDate||new Date().toLocaleDateString();
+
+// autosave any typed edit (names, rooms, times, given, settings, date)
+let __pt;const autosave=()=>{clearTimeout(__pt);__pt=setTimeout(persist,400);};
+document.addEventListener("input",autosave);
+document.addEventListener("change",autosave);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)persist();});
+window.addEventListener("pagehide",persist);
+window.addEventListener("beforeunload",persist);
+
+renderRoster();
+if(state.schedule)renderOutput();
+</script>
+</body>
+</html>
