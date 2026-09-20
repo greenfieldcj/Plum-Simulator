@@ -51,7 +51,7 @@
   .track{position:relative;height:92px;min-width:520px;}
   .tick{position:absolute;top:0;bottom:18px;border-left:1px dashed var(--tlLine);}
   .tick span{position:absolute;bottom:-16px;left:-14px;font-size:11px;color:#8fa39d;font-family:'IBM Plex Mono',monospace;}
-  .block{position:absolute;top:6px;height:60px;border-radius:8px;padding:5px 7px;color:#0c1614;overflow:hidden;min-width:46px;cursor:grab;touch-action:none;user-select:none;box-shadow:0 4px 10px rgba(0,0,0,.3);}
+  .block{position:absolute;top:6px;height:60px;border-radius:8px;padding:5px 7px;color:#0c1614;overflow:hidden;min-width:46px;cursor:default;touch-action:none;user-select:none;box-shadow:0 4px 10px rgba(0,0,0,.3);}
   .block.warn{box-shadow:0 0 0 2px #fb923c,0 4px 10px rgba(0,0,0,.35);}
   .block.bad{box-shadow:0 0 0 2px #f43f5e,0 4px 10px rgba(0,0,0,.35);}
   .block .t{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.1;}
@@ -141,25 +141,29 @@
   <div class="panel noprint row" style="justify-content:space-between;">
     <label class="row" style="gap:8px;"><span class="label" style="font-size:13px;">Clinical date</span>
       <input id="clinDate" class="inp" type="text" style="width:160px;"></label>
+    <label class="row" style="gap:8px;"><span class="label" style="font-size:13px;">Start first pass at</span>
+      <input id="firstStart" class="inp mono" type="text" placeholder="auto" style="width:80px;"><span class="label">blank = near due times</span></label>
   </div>
 
   <div id="roster"></div>
 
   <div class="sticky noprint">
     <button id="addStudent" class="btn btn-secondary">＋ Add student <span id="studentCount"></span></button>
-    <button id="build" class="btn btn-primary" style="flex:1;min-width:200px;">🗓 Build supervision schedule</button>
+    <button id="timesBtn" class="btn btn-secondary" title="Enter all med pass times in one table">🕒 Pass times</button>
+    <button id="build" class="btn btn-primary" style="flex:1;min-width:180px;">🗓 Build supervision schedule</button>
     <button id="assignSheet" class="btn btn-secondary" title="Save the student / RN / tech assignment sheet">👥 Assignment sheet</button>
     <button id="clearDay" class="btn btn-ghost bordered" title="Start a new clinical day">🧹 Clear day</button>
   </div>
 
+  <div id="timesPanel" class="noprint"></div>
   <div id="output"></div>
-  <div class="label" style="text-align:center;margin-top:24px;opacity:.55;">Med Pass Scheduler · build 2026-06-11b</div>
+  <div class="label" style="text-align:center;margin-top:24px;opacity:.55;">Med Pass Scheduler · build 2026-06-11h</div>
 </div>
 
 <div id="printDoc"></div>
 
 <script>
-const COLORS=[{base:"#0d9488",bright:"#2dd4bf"},{base:"#c2700a",bright:"#f59e0b"},{base:"#4338ca",bright:"#818cf8"},{base:"#be123c",bright:"#fb7185"}];
+const COLORS=[{base:"#0d9488",bright:"#2dd4bf"},{base:"#c2700a",bright:"#f59e0b"},{base:"#4338ca",bright:"#818cf8"},{base:"#be123c",bright:"#fb7185"},{base:"#7c3aed",bright:"#c4b5fd"},{base:"#0369a1",bright:"#38bdf8"},{base:"#15803d",bright:"#4ade80"},{base:"#b45309",bright:"#fbbf24"}];
 
 function h(tag,attrs,...kids){
   const el=document.createElement(tag);
@@ -184,7 +188,7 @@ const newPatient=()=>({id:nid(),room:"",rn:"",pct:"",photos:[],meds:[],passes:[n
 
 const state={
   students:[{id:nid(),name:"",patients:[newPatient()]}],
-  settings:{slotMinutes:15,standardWindow:60,criticalWindow:30,dayStart:420,dayEnd:900},
+  settings:{slotMinutes:15,standardWindow:60,criticalWindow:30,dayStart:420,dayEnd:900,firstStart:null},
   schedule:null,
   apiKey:localStorage.getItem("mps_key")||"",
   model:localStorage.getItem("mps_model")||"claude-sonnet-4-6",
@@ -192,7 +196,7 @@ const state={
 };
 
 function buildSchedule(students,settings){
-  const slot=settings.slotMinutes;const passes=[];
+  const slot=settings.slotMinutes;const result=[];
   students.forEach((s,si)=>{s.patients.forEach(p=>{
     const passList=(p.passes||[]).map(pass=>({pass,t:parseTime(pass.targetTime)})).filter(x=>x.t!==null);
     if(!passList.length)return;
@@ -202,17 +206,15 @@ function buildSchedule(students,settings){
       const used={};
       mts.forEach(mt=>{let bi=0,bd=Infinity;passList.forEach((x,xi)=>{const dd=Math.abs(mt-x.t);if(dd<bd){bd=dd;bi=xi;}});
         if(!used[bi]){used[bi]=1;medsByPass[bi].push(m);}});});
-    passList.forEach((x,xi)=>passes.push({studentId:s.id,studentName:s.name||("Student "+(si+1)),colorIndex:si,patientId:p.id,
-      room:p.room||"?",targetMin:x.t,timeCritical:!!x.pass.timeCritical,action:(x.pass.action==="stop"?"stop":"give"),
-      window:x.pass.timeCritical?settings.criticalWindow:settings.standardWindow,meds:medsByPass[xi]}));
+    passList.forEach((x,xi)=>{
+      const start=x.t;                                            // the typed time IS the exact slot start
+      const dueMin=(x.pass.due!=null?parseTime(x.pass.due):x.t);   // original MAR time, only for the window/deviation flags
+      result.push({studentId:s.id,studentName:s.name||("Student "+(si+1)),colorIndex:si,patientId:p.id,
+        room:p.room||"?",rn:p.rn||"",pct:p.pct||"",start:start,end:start+slot,targetMin:(dueMin!=null?dueMin:start),
+        timeCritical:!!x.pass.timeCritical,action:(x.pass.action==="stop"?"stop":"give"),
+        window:x.pass.timeCritical?settings.criticalWindow:settings.standardWindow,meds:medsByPass[xi],unscheduled:false});
+    });
   });});
-  passes.sort((a,b)=>{if(a.timeCritical!==b.timeCritical)return a.timeCritical?-1:1;if(a.window!==b.window)return a.window-b.window;return a.targetMin-b.targetMin;});
-  const assigned=[];const overlaps=(s,e)=>assigned.some(x=>s<x.end&&x.start<e);const result=[];
-  for(const p of passes){const lo=p.targetMin-p.window,hi=p.targetMin+p.window-slot;let best=null,bestDist=Infinity;
-    for(let st=lo;st<=hi;st+=5){if(overlaps(st,st+slot))continue;const dist=Math.abs(st+slot/2-p.targetMin);if(dist<bestDist){bestDist=dist;best=st;}}
-    if(best===null){for(let d=5;d<=360&&best===null;d+=5){for(const cand of[p.targetMin-d,p.targetMin+d]){const st=Math.round(cand/5)*5;if(!overlaps(st,st+slot)){best=st;break;}}}}
-    if(best===null){result.push({...p,start:null,end:null,unscheduled:true});continue;}
-    assigned.push({start:best,end:best+slot});result.push({...p,start:best,end:best+slot,unscheduled:false});}
   return result;
 }
 
@@ -245,7 +247,7 @@ function fileToImage(file){return new Promise((res,rej)=>{const r=new FileReader
   r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});}
 
 function findP(sid,pid){const s=state.students.find(x=>x.id===sid);return[s,s&&s.patients.find(p=>p.id===pid)];}
-function addStudent(){if(state.students.length<4){state.students.push({id:nid(),name:"",patients:[newPatient()]});renderRoster();}}
+function addStudent(){if(state.students.length<8){state.students.push({id:nid(),name:"",patients:[newPatient()]});renderRoster();}}
 function removeStudent(sid){state.students=state.students.filter(s=>s.id!==sid);renderRoster();}
 function addPatient(sid){const s=state.students.find(x=>x.id===sid);if(s&&s.patients.length<5){s.patients.push(newPatient());renderRoster();}}
 function removePatient(sid,pid){const s=state.students.find(x=>x.id===sid);if(s){s.patients=s.patients.filter(p=>p.id!==pid);renderRoster();}}
@@ -275,13 +277,17 @@ async function analyze(sid,pid){
     const giveCl=cluster(times.filter(t=>t.action!=="stop")).map(c=>({...c,action:"give"}));
     const stopCl=cluster(times.filter(t=>t.action==="stop")).map(c=>({...c,action:"stop"}));
     const clusters=giveCl.concat(stopCl);
-    if(clusters.length)p.passes=clusters.map(c=>({id:nid(),targetTime:fmt(c.min),timeCritical:c.crit,action:c.action}));
+    if(clusters.length)p.passes=clusters.map(c=>({id:nid(),targetTime:fmt(c.min),due:fmt(c.min),timeCritical:c.crit,action:c.action}));
     p.analyzing=false;
   }catch(e){p.analyzing=false;p.error=(e&&e.message)?e.message:"Could not read that photo. Try a clearer crop, or enter the time manually.";}
   renderRoster();
 }
 function generate(){
-  const rows=buildSchedule(state.students,state.settings);const placed=rows.filter(r=>!r.unscheduled);
+  const rows=buildSchedule(state.students,state.settings);let placed=rows.filter(r=>!r.unscheduled);
+  // if a first-pass start time is set, rigidly shift the whole schedule so the earliest pass begins there
+  const fs=state.settings.firstStart;
+  if(fs!=null&&placed.length){const earliest=Math.min(...placed.map(r=>r.start));const delta=fs-earliest;
+    if(delta!==0)placed.forEach(r=>{r.start+=delta;r.end+=delta;});}
   let mn=0,mx=0;if(placed.length){mn=Math.min(...placed.map(r=>r.start));mx=Math.max(...placed.map(r=>r.end));}
   state.schedule={rows,bounds:{min:Math.floor((mn-30)/5)*5,max:Math.ceil((mx+30)/5)*5}};
   renderOutput();persist();document.getElementById("output").scrollIntoView({behavior:"smooth",block:"start"});
@@ -296,6 +302,38 @@ function onDragMove(e){if(!dragState)return;const d=dragState;let ns=Math.round(
   if(!d.raf)d.raf=requestAnimationFrame(()=>{d.raf=0;renderOutput();});}
 function onDragUp(){document.removeEventListener("pointermove",onDragMove);document.removeEventListener("pointerup",onDragUp);dragState=null;renderOutput();persist();}
 
+function renderTimesTable(){
+  const panel=document.getElementById("timesPanel");panel.innerHTML="";
+  const studs=state.students.filter(s=>s.patients&&s.patients.length);
+  if(!studs.length){panel.appendChild(h("div",{class:"panel",style:{color:"var(--inkSoft)"}},"Add students and their patient assignments first, then tap Pass times."));return;}
+  // count how many passes share each time (to flag duplicates)
+  const counts={};
+  studs.forEach(s=>s.patients.forEach(p=>(p.passes||[]).forEach(pp=>{const t=parseTime(pp.targetTime);if(t!==null)counts[t]=(counts[t]||0)+1;})));
+  const wrap=h("div",{class:"panel"});
+  wrap.appendChild(h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"8px",marginBottom:"8px"}},
+    h("h2",{},"Med pass times"),
+    h("button",{class:"btn btn-primary",style:{padding:"9px 16px",fontSize:"14px"},onclick:generate},"🗓 Build schedule")));
+  wrap.appendChild(h("div",{class:"label",style:{marginBottom:"10px"}},"Type the exact time for each pass. A time used by more than one pass is highlighted — space those out so you can supervise each one. Then tap Build schedule."));
+  const table=h("div",{style:{border:"1px solid var(--line)",borderRadius:"12px",overflow:"hidden"}});
+  studs.forEach(s=>{const si=state.students.indexOf(s);const col=COLORS[si];
+    table.appendChild(h("div",{class:"grouphdr"},h("span",{class:"swatch",style:{width:"11px",height:"11px",borderRadius:"50%",background:col.base}}),s.name||("Student "+(si+1))));
+    s.patients.forEach(p=>{(p.passes||[]).forEach(pass=>{
+      const t=parseTime(pass.targetTime);const dup=t!==null&&counts[t]>1;
+      const tIn=h("input",{class:"inp mono",style:{width:"96px",fontSize:"16px"},value:pass.targetTime||"",placeholder:"0000"});
+      tIn.addEventListener("input",e=>{pass.targetTime=e.target.value;persist();});
+      tIn.addEventListener("change",renderTimesTable);
+      const ref=[];if(pass.action==="stop")ref.push("STOP IV");else if(pass.timeCritical)ref.push("IV");
+      if(pass.due)ref.push("due "+fmt(parseTime(pass.due)));
+      const medc=(p.meds||[]).length;if(medc)ref.push(medc+" med"+(medc>1?"s":""));
+      table.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",borderTop:"1px solid var(--line)",background:dup?"#fdeede":"#fff"}},
+        h("div",{style:{flex:"1",minWidth:"120px"}},h("span",{style:{fontWeight:"600",fontSize:"14px"}},"Rm "+(p.room||"?")),ref.length?h("span",{style:{color:"var(--inkSoft)",marginLeft:"8px",fontSize:"12px"}},ref.join(" · ")):null),
+        h("span",{class:"label"},pass.action==="stop"?"Stop at":"Pass at"),tIn,
+        dup?h("span",{class:"badge",style:{color:"#9a3412",background:"#fdeede"}},"⚠ shared"):null));
+    });});
+  });
+  wrap.appendChild(table);panel.appendChild(wrap);
+  panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
 function renderRoster(){
   const root=document.getElementById("roster");root.innerHTML="";
   state.students.forEach((s,si)=>{const col=COLORS[si];
@@ -308,8 +346,8 @@ function renderRoster(){
     s.patients.forEach(p=>grid.appendChild(patientCard(s,p,col)));
     if(s.patients.length<5)grid.appendChild(h("button",{class:"btn addcard noprint",onclick:()=>addPatient(s.id)},"🛏 Add patient"));
     card.appendChild(grid);root.appendChild(card);});
-  document.getElementById("studentCount").textContent="("+state.students.length+"/4)";
-  document.getElementById("addStudent").style.display=state.students.length<4?"":"none";
+  document.getElementById("studentCount").textContent="("+state.students.length+"/8)";
+  document.getElementById("addStudent").style.display=state.students.length<8?"":"none";
   persist();
 }
 function patientCard(s,p,col){
@@ -357,7 +395,7 @@ function patientCard(s,p,col){
     const lbl=h("label",{class:"row noprint",style:{gap:"6px",fontSize:"14px",cursor:"pointer",color:pass.timeCritical?"#be123c":"var(--inkSoft)"}},chk," IV / time-critical");
     chk.addEventListener("change",e=>{pass.timeCritical=e.target.checked;lbl.style.color=e.target.checked?"#be123c":"var(--inkSoft)";});
     card.appendChild(h("div",{class:"row",style:{marginBottom:"8px"}},
-      h("div",{class:"row",style:{gap:"6px"}},h("span",{style:{color:pass.action==="stop"?"#9a3412":"var(--inkSoft)"}},pass.action==="stop"?"⏹":"🕐"),h("span",{class:"label",style:pass.action==="stop"?{color:"#9a3412",fontWeight:"600"}:{}},pass.action==="stop"?"Stop":"Due"),tIn),lbl,
+      h("div",{class:"row",style:{gap:"6px"}},h("span",{style:{color:pass.action==="stop"?"#9a3412":"var(--inkSoft)"}},pass.action==="stop"?"⏹":"🕐"),h("span",{class:"label",style:pass.action==="stop"?{color:"#9a3412",fontWeight:"600"}:{}},pass.action==="stop"?"Stop at":"Pass at"),tIn),lbl,
       p.passes.length>1?h("button",{class:"btn btn-ghost noprint",style:{marginLeft:"auto",padding:"4px"},title:"Remove pass",onclick:()=>removePass(s.id,p.id,pass.id)},"✕"):null));});
   if(p.passes.length<4)card.appendChild(h("button",{class:"noprint",style:{display:"inline-flex",alignItems:"center",gap:"5px",background:"none",border:"none",color:col.base,fontSize:"14px",fontWeight:"600",cursor:"pointer",padding:"2px 0"},onclick:()=>addPass(s.id,p.id)},"＋ Add another pass time"));
   return card;
@@ -393,7 +431,7 @@ function renderOutput(){
       h("button",{class:"btn btn-secondary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:shareSchedule},"📤 Share"),
       h("button",{class:"btn btn-primary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:saveDocument},"📄 Save as document"))));
   out.appendChild(h("p",{class:"label noprint",style:{margin:"0 0 12px"}},
-    "⠿ Drag to fine-tune. ⏱ If a pass runs over, tap “Reflow from now” to re-stack the rest of the day from the current time."+
+    "Set each pass time in the student cards above (the time you type is the exact slot). ⏱ If a pass runs over, tap “Reflow from now” to re-stack the rest from the current time."+
     (state.schedule.lastReflow!=null?(" · Last re-anchored "+fmt(state.schedule.lastReflow)):"")));
 
   const tl=h("div",{class:"timeline"});trackEl=h("div",{class:"track"});
@@ -403,8 +441,8 @@ function renderOutput(){
     const block=h("div",{class:"block"+(r.overlap?" bad":(r.windowConflict?" warn":"")),
       style:{left:((r.start-b.min)/range*100)+"%",width:((r.end-r.start)/range*100)+"%",background:c.bright},
       title:r.studentName+" · Rm "+r.room+" · "+fmt(r.start)+"–"+fmt(r.end)},
-      h("div",{class:"t"},"⠿ "+fmt(r.start)),h("div",{class:"rm"},(r.action==="stop"?"⏹ ":"")+"Rm "+r.room),h("div",{class:"nm"},r.studentName+(r.action==="stop"?" · STOP IV":(r.timeCritical?" · IV":""))));
-    block.addEventListener("pointerdown",e=>startDrag(e,r.idx));trackEl.appendChild(block);});
+      h("div",{class:"t"},fmt(r.start)),h("div",{class:"rm"},(r.action==="stop"?"⏹ ":"")+"Rm "+r.room),h("div",{class:"nm"},r.studentName+(r.action==="stop"?" · STOP IV":(r.timeCritical?" · IV":""))));
+    trackEl.appendChild(block);});
   tl.appendChild(trackEl);
   const legend=h("div",{class:"legend"});
   state.students.forEach((s,si)=>legend.appendChild(h("span",{},h("span",{class:"swatch",style:{background:COLORS[si].bright}}),s.name||("Student "+(si+1)))));
@@ -431,7 +469,9 @@ function renderOutput(){
     return h("div",{class:"trow",style:{background:ng?"#fdf2f4":(done?"#fef9c3":(bg?"#fbfaf6":"#fff"))}},
       h("div",{class:"mono",style:{fontSize:"15px",minWidth:"96px"}},fmt(r.start)+"–"+fmt(r.end)),
       h("span",{class:"swatch",style:{width:"10px",height:"10px",borderRadius:"50%",background:c.base}}),
-      h("div",{style:{minWidth:"120px"}},h("div",{style:{fontWeight:"600"}},r.studentName),h("div",{style:{fontSize:"12px",color:r.action==="stop"?"#9a3412":"var(--inkSoft)"}},"Room "+r.room+" · "+actWord(r)+" "+fmt(r.targetMin))),
+      h("div",{style:{minWidth:"120px"}},h("div",{style:{fontWeight:"600"}},r.studentName),
+        h("div",{style:{fontSize:"12px",color:r.action==="stop"?"#9a3412":"var(--inkSoft)"}},"Room "+r.room+" · "+actWord(r)+" "+fmt(r.targetMin)),
+        (r.rn||r.pct)?h("div",{style:{fontSize:"11px",color:"var(--inkSoft)",opacity:".85"}},(r.rn?"RN "+r.rn:"")+(r.rn&&r.pct?" · ":"")+(r.pct?"PCT "+r.pct:"")):null),
       h("div",{style:{flex:"1",fontSize:"12px",color:"var(--inkSoft)",lineHeight:"1.4",minWidth:"120px"}},(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.route?" ("+m.route+")":"")).join(", "):"—"),
       h("div",{class:"given noprint"},h("span",{class:"label"},"Given"),givenIn,ngBtn),
       badges);
@@ -451,11 +491,12 @@ function renderOutput(){
   const repStudents=state.students.filter(s=>view.some(r=>r.studentId===s.id));
   if(repStudents.length){
     const box=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"8px"}});
+    box.appendChild(h("button",{class:"btn btn-primary",style:{padding:"9px 14px",fontSize:"14px"},onclick:printAllReports},"📁 Save all — one dated file"));
     repStudents.forEach(s=>{const si=state.students.indexOf(s);
       box.appendChild(h("button",{class:"btn btn-secondary",style:{padding:"9px 14px",fontSize:"14px"},onclick:()=>printStudentReport(s.id)},"📄 "+(s.name||("Student "+(si+1)))));});
     out.appendChild(h("div",{class:"noprint",style:{marginTop:"18px"}},
       h("div",{class:"label",style:{fontWeight:"600",marginBottom:"4px"}},"📄 Per-student reports — due vs. actual"),
-      h("div",{class:"label",style:{marginBottom:"8px"}},"Enter each Given time above, then tap a student to save their individual report (one PDF per student)."),
+      h("div",{class:"label",style:{marginBottom:"8px"}},"“Save all” makes one file named for the clinical day, with each student's report on its own page. Or tap a student for just their report."),
       box));
   }
   if(unsched.length)out.appendChild(h("div",{style:{marginTop:"14px",padding:"14px",borderRadius:"10px",background:"#fdeede",color:"#7c2d12",fontSize:"13px"}},
@@ -482,18 +523,18 @@ function renderPrintDoc(view,count,minStart,maxEnd,unsched){
     if(r.windowConflict)notes.push("OUTSIDE WINDOW");if(r.overlap)notes.push("OVERLAP");
     const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":"")).join("; "):"—";
     const given=ng?"not given":((row.given||"").trim());
-    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.studentName)+"</td><td>"+esc(r.room)+"</td><td class='mono'>"+fmt(r.targetMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(given)+"</td><td>"+esc(meds)+"</td><td>"+esc(notes.join(", "))+"</td></tr>";
+    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.studentName)+"</td><td>"+esc(r.room)+"</td><td>"+esc((r.rn||"—")+" / "+(r.pct||"—"))+"</td><td class='mono'>"+fmt(r.targetMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(given)+"</td><td>"+esc(meds)+"</td><td>"+esc(notes.join(", "))+"</td></tr>";
   };
   let rows="";
   groupView(view).forEach(g=>{
-    if(g.label)rows+="<tr><td colspan='7' style='background:#f1ede3;font-weight:600;'>"+esc(g.label)+"</td></tr>";
+    if(g.label)rows+="<tr><td colspan='8' style='background:#f1ede3;font-weight:600;'>"+esc(g.label)+"</td></tr>";
     g.rows.forEach(r=>{rows+=cell(r);});
   });
   const uns=unsched.length?"<p style='color:#7c2d12;font-size:12px;margin-top:10px;'><strong>Could not place:</strong> "+esc(unsched.map(r=>r.studentName+" (Rm "+r.room+", "+fmt(r.targetMin)+")").join(", "))+"</p>":"";
   document.getElementById("printDoc").innerHTML=
     "<div class='pd-wrap'><div class='pd-h1'>Clinical Med Pass Supervision Schedule</div>"+
     "<div class='pd-meta'>"+(date?("Date: "+esc(date)+" · "):"")+count+" med passes · supervision span "+fmt(minStart)+"–"+fmt(maxEnd)+"</div>"+
-    "<table class='pd'><thead><tr><th>Time</th><th>Student</th><th>Room</th><th>Due</th><th>Given</th><th>Medications</th><th>Notes</th></tr></thead><tbody>"+rows+"</tbody></table>"+uns+
+    "<table class='pd'><thead><tr><th>Time</th><th>Student</th><th>Room</th><th>RN / PCT</th><th>Due</th><th>Given</th><th>Medications</th><th>Notes</th></tr></thead><tbody>"+rows+"</tbody></table>"+uns+
     "<div class='pd-foot'>Generated "+new Date().toLocaleString()+" · Verify all times against the MAR and facility med-administration policy.</div></div>";
 }
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
@@ -509,7 +550,8 @@ function buildShareText(){
       const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.route?" ("+m.route+")":"")).join(", "):"—";
       const crit=r.timeCritical?" [time-critical]":"";
       const who=g.label?"":" · "+r.studentName;
-      out+=(g.label?"  ":"")+fmt(r.start)+"–"+fmt(r.end)+"  Rm "+r.room+who+" · "+meds+crit+"\n";
+      const staff=(r.rn||r.pct)?("  [RN "+(r.rn||"—")+" / PCT "+(r.pct||"—")+"]"):"";
+      out+=(g.label?"  ":"")+fmt(r.start)+"–"+fmt(r.end)+"  Rm "+r.room+who+" · "+meds+crit+staff+"\n";
     });
   });
   return out.trim();
@@ -547,15 +589,28 @@ function studentReportDoc(sid){
       if(gm!==null){given++;const d=gm-dueMin;varTxt=(d>0?"+":"")+d+" min";
         const ok=Math.abs(d)<=r.window;if(ok)within++;note=(note?note+"; ":"")+(ok?"within window":"OUTSIDE window");}}
     const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":"")).join("; "):"—";
-    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.room)+"</td><td class='mono'>"+fmt(dueMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(givenCell)+"</td><td>"+esc(varTxt)+"</td><td>"+esc(meds)+"</td><td>"+esc(note)+"</td></tr>";
+    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.room)+"</td><td>"+esc((r.rn||"—")+" / "+(r.pct||"—"))+"</td><td class='mono'>"+fmt(dueMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(givenCell)+"</td><td>"+esc(varTxt)+"</td><td>"+esc(meds)+"</td><td>"+esc(note)+"</td></tr>";
   }).join("");
   const summary=total?(given+" of "+total+" passes charted"+(notgiven?(" · "+notgiven+" not given"):"")+" · "+within+" of "+given+" given within the allowable window"):"No scheduled passes for this student.";
   return "<div class='pd-wrap'><div class='pd-h1'>Med Pass Report — "+esc(s.name||("Student "+(si+1)))+"</div>"+
     "<div class='pd-meta'>"+(date?("Date: "+esc(date)+" · "):"")+esc(summary)+"</div>"+
-    "<table class='pd'><thead><tr><th>Window</th><th>Room</th><th>Due</th><th>Given</th><th>Variance</th><th>Medications</th><th>Notes</th></tr></thead><tbody>"+trs+"</tbody></table>"+
+    "<table class='pd'><thead><tr><th>Window</th><th>Room</th><th>RN / PCT</th><th>Due</th><th>Given</th><th>Variance</th><th>Medications</th><th>Notes</th></tr></thead><tbody>"+trs+"</tbody></table>"+
     "<div class='pd-foot'>Generated "+new Date().toLocaleString()+" · Times reflect supervised administration. Verify against the MAR and facility medication-administration policy.</div></div>";
 }
 function printStudentReport(sid){document.getElementById("printDoc").innerHTML=studentReportDoc(sid);window.print();}
+function printAllReports(){
+  const date=document.getElementById("clinDate").value||"";
+  const {view}=buildView();
+  const studs=state.students.filter(s=>view.some(r=>r.studentId===s.id));
+  if(!studs.length){window.print();return;}
+  const header="<div class='pd-wrap' style='page-break-after:always;'><div class='pd-h1'>Clinical Med Pass Reports</div><div class='pd-meta'>"+(date?("Date: "+esc(date)+" · "):"")+studs.length+" student"+(studs.length>1?"s":"")+"</div></div>";
+  const body=studs.map((s,i)=>"<div style='page-break-before:always;'>"+studentReportDoc(s.id)+"</div>").join("");
+  document.getElementById("printDoc").innerHTML=header+body;
+  const old=document.title;
+  document.title="Med Pass Reports "+(date||"").replace(/[\\/:*?\"<>|]/g,"-");
+  window.print();
+  setTimeout(()=>{document.title=old;},1500);
+}
 function assignmentDoc(){
   const date=document.getElementById("clinDate").value||"";
   let body="";
@@ -647,8 +702,11 @@ document.getElementById("dayStart").value=fmt(state.settings.dayStart);
 document.getElementById("dayEnd").value=fmt(state.settings.dayEnd);
 document.getElementById("dayStart").addEventListener("input",e=>{const v=parseTime(e.target.value);if(v!==null)state.settings.dayStart=v;});
 document.getElementById("dayEnd").addEventListener("input",e=>{const v=parseTime(e.target.value);if(v!==null)state.settings.dayEnd=v;});
+if(state.settings.firstStart!=null)document.getElementById("firstStart").value=fmt(state.settings.firstStart);
+document.getElementById("firstStart").addEventListener("input",e=>{const raw=e.target.value.trim();state.settings.firstStart=raw===""?null:parseTime(raw);});
 document.getElementById("addStudent").addEventListener("click",addStudent);
 document.getElementById("build").addEventListener("click",generate);
+document.getElementById("timesBtn").addEventListener("click",renderTimesTable);
 document.getElementById("assignSheet").addEventListener("click",printAssignment);
 document.getElementById("clearDay").addEventListener("click",clearDay);
 document.getElementById("clinDate").value=window.__clinDate||new Date().toLocaleDateString();
