@@ -157,7 +157,7 @@
 
   <div id="timesPanel" class="noprint"></div>
   <div id="output"></div>
-  <div class="label" style="text-align:center;margin-top:24px;opacity:.55;">Med Pass Scheduler · build 2026-06-11h</div>
+  <div class="label" style="text-align:center;margin-top:24px;opacity:.55;">Med Pass Scheduler · build 2026-06-11j</div>
 </div>
 
 <div id="printDoc"></div>
@@ -224,7 +224,7 @@ async function readMeds(images){
     "These are photo(s) of a medication administration record (MAR) for ONE patient in a nursing clinical. "+
     "Extract ONLY scheduled medications that have a specific clock administration time. "+
     "OMIT PRN / as-needed medications, and omit any line that does not have a clear scheduled time. "+
-    "For each medication return: name, dose (if shown), route exactly as written (PO, IV, IVPB, IVP, IM, SubQ, etc.), and its scheduled time(s) in 24-hour HHMM format. "+
+    "For each medication return: name, dose (if shown), route exactly as written (PO, IV, IVPB, IVP, IM, SubQ, etc.), and its scheduled time(s) in 24-hour HHMM format. Pair each medication with ONLY the time(s) that medication is actually scheduled for on its own row; do NOT copy every time listed for the patient onto every medication. "+
     "Every returned medication MUST have at least one scheduled time. NEVER output a time that has no medication attached to it. "+
     "Set timeCritical=true for any IV push (IVP), IV piggyback (IVPB), IV antibiotic, insulin, or anticoagulant (e.g. heparin, enoxaparin/Lovenox), and for anything marked time-critical/STAT/NOW; otherwise false. "+
     "If a medication or IV infusion has a scheduled time to be STOPPED, discontinued, taken down, or turned off (e.g. marked D/C, discontinue, stop, off at, or an infusion end time), return that as a SEPARATE entry with action set to \"stop\" and that stop time in times. Normal administrations use action \"give\". "+
@@ -429,7 +429,7 @@ function renderOutput(){
       h("button",{class:"btn btn-secondary noprint",style:{padding:"9px 14px",fontSize:"14px",borderColor:"var(--gold)",color:"var(--gold)"},onclick:reflow},"⏱ Reflow from now"),
       h("button",{class:"btn btn-ghost bordered noprint",onclick:generate},"↺ Reset"),
       h("button",{class:"btn btn-secondary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:shareSchedule},"📤 Share"),
-      h("button",{class:"btn btn-primary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:saveDocument},"📄 Save as document"))));
+      h("button",{class:"btn btn-primary noprint",style:{padding:"9px 14px",fontSize:"14px"},onclick:saveDocument},"📄 Save full med pass"))));
   out.appendChild(h("p",{class:"label noprint",style:{margin:"0 0 12px"}},
     "Set each pass time in the student cards above (the time you type is the exact slot). ⏱ If a pass runs over, tap “Reflow from now” to re-stack the rest from the current time."+
     (state.schedule.lastReflow!=null?(" · Last re-anchored "+fmt(state.schedule.lastReflow)):"")));
@@ -491,12 +491,11 @@ function renderOutput(){
   const repStudents=state.students.filter(s=>view.some(r=>r.studentId===s.id));
   if(repStudents.length){
     const box=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"8px"}});
-    box.appendChild(h("button",{class:"btn btn-primary",style:{padding:"9px 14px",fontSize:"14px"},onclick:printAllReports},"📁 Save all — one dated file"));
     repStudents.forEach(s=>{const si=state.students.indexOf(s);
       box.appendChild(h("button",{class:"btn btn-secondary",style:{padding:"9px 14px",fontSize:"14px"},onclick:()=>printStudentReport(s.id)},"📄 "+(s.name||("Student "+(si+1)))));});
     out.appendChild(h("div",{class:"noprint",style:{marginTop:"18px"}},
-      h("div",{class:"label",style:{fontWeight:"600",marginBottom:"4px"}},"📄 Per-student reports — due vs. actual"),
-      h("div",{class:"label",style:{marginBottom:"8px"}},"“Save all” makes one file named for the clinical day, with each student's report on its own page. Or tap a student for just their report."),
+      h("div",{class:"label",style:{fontWeight:"600",marginBottom:"4px"}},"📄 Individual student reports — due vs. actual"),
+      h("div",{class:"label",style:{marginBottom:"8px"}},"Tap a student to save just their report. (The whole med pass is saved with “Save full med pass” above.)"),
       box));
   }
   if(unsched.length)out.appendChild(h("div",{style:{marginTop:"14px",padding:"14px",borderRadius:"10px",background:"#fdeede",color:"#7c2d12",fontSize:"13px"}},
@@ -521,9 +520,9 @@ function renderPrintDoc(view,count,minStart,maxEnd,unsched){
     const row=state.schedule.rows[r.idx];const ng=!!row.notGiven;
     const notes=[];if(ng)notes.push("NOT GIVEN");if(r.action==="stop")notes.push("STOP / discontinue");if(r.timeCritical)notes.push("time-critical");if(r.deviation!==0)notes.push((r.deviation>0?"+":"")+r.deviation+" min vs due");
     if(r.windowConflict)notes.push("OUTSIDE WINDOW");if(r.overlap)notes.push("OVERLAP");
-    const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":"")).join("; "):"—";
+    const meds=medsByTime(r.meds);
     const given=ng?"not given":((row.given||"").trim());
-    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.studentName)+"</td><td>"+esc(r.room)+"</td><td>"+esc((r.rn||"—")+" / "+(r.pct||"—"))+"</td><td class='mono'>"+fmt(r.targetMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(given)+"</td><td>"+esc(meds)+"</td><td>"+esc(notes.join(", "))+"</td></tr>";
+    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.studentName)+"</td><td>"+esc(r.room)+"</td><td>"+esc((r.rn||"—")+" / "+(r.pct||"—"))+"</td><td class='mono'>"+fmt(r.targetMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(given)+"</td><td>"+meds+"</td><td>"+esc(notes.join(", "))+"</td></tr>";
   };
   let rows="";
   groupView(view).forEach(g=>{
@@ -540,6 +539,19 @@ function renderPrintDoc(view,count,minStart,maxEnd,unsched){
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function spx(m){return (m&&m.action==="stop")?"STOP ":"";}
 function actWord(r){return (r&&r.action==="stop")?"stop":"due";}
+function medsByTime(meds){
+  // group a pass's meds by their own scheduled time so "what med when" is explicit
+  if(!meds||!meds.length)return "—";
+  const groups={};const order=[];
+  meds.forEach(m=>{
+    const ts=(m.times||[]).map(t=>parseTime(t)).filter(v=>v!==null);
+    const key=ts.length?ts.map(fmt).join("/"):"time n/a";
+    if(!groups[key]){groups[key]=[];order.push(key);}
+    groups[key].push(spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":""));
+  });
+  order.sort((a,b)=>{const pa=parseTime(a)??9999,pb=parseTime(b)??9999;return pa-pb;});
+  return order.map(k=>"<b>"+esc(k)+"</b> — "+esc(groups[k].join("; "))).join("<br>");
+}
 function buildShareText(){
   const {view}=buildView();
   const date=document.getElementById("clinDate").value||"";
@@ -588,8 +600,8 @@ function studentReportDoc(sid){
     else{givenCell=(gm!==null?fmt(gm):(gv||""));
       if(gm!==null){given++;const d=gm-dueMin;varTxt=(d>0?"+":"")+d+" min";
         const ok=Math.abs(d)<=r.window;if(ok)within++;note=(note?note+"; ":"")+(ok?"within window":"OUTSIDE window");}}
-    const meds=(r.meds||[]).length?r.meds.map(m=>spx(m)+m.name+(m.dose?" "+m.dose:"")+(m.route?" ("+m.route+")":"")).join("; "):"—";
-    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.room)+"</td><td>"+esc((r.rn||"—")+" / "+(r.pct||"—"))+"</td><td class='mono'>"+fmt(dueMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(givenCell)+"</td><td>"+esc(varTxt)+"</td><td>"+esc(meds)+"</td><td>"+esc(note)+"</td></tr>";
+    const meds=medsByTime(r.meds);
+    return "<tr><td class='mono'>"+fmt(r.start)+"–"+fmt(r.end)+"</td><td>"+esc(r.room)+"</td><td>"+esc((r.rn||"—")+" / "+(r.pct||"—"))+"</td><td class='mono'>"+fmt(dueMin)+(r.action==="stop"?" (stop)":"")+"</td><td class='mono'>"+esc(givenCell)+"</td><td>"+esc(varTxt)+"</td><td>"+meds+"</td><td>"+esc(note)+"</td></tr>";
   }).join("");
   const summary=total?(given+" of "+total+" passes charted"+(notgiven?(" · "+notgiven+" not given"):"")+" · "+within+" of "+given+" given within the allowable window"):"No scheduled passes for this student.";
   return "<div class='pd-wrap'><div class='pd-h1'>Med Pass Report — "+esc(s.name||("Student "+(si+1)))+"</div>"+
